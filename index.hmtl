@@ -2,10 +2,471 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Mi Página</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego Vocacional 3.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #a8d5e5;
+            background-image: radial-gradient(circle, #cde9f2 1px, transparent 1px);
+            background-size: 15px 15px;
+        }
+        .board-container {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-template-rows: repeat(12, 1fr);
+            width: 80vmin;
+            height: 80vmin;
+            max-width: 700px;
+            max-height: 700px;
+            gap: 4px;
+        }
+        .square {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            border-radius: 50%;
+            color: #444;
+            background-color: #f1f1d4;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+            border: 3px solid #e6e6bf;
+        }
+        .square-prize { background-color: #d4f1d4; border-color: #b8e0b8; }
+        .square-penalty { background-color: #f1d4d4; border-color: #e0b8b8; }
+        .square-skill { background-color: #d4e8f1; border-color: #b8d0e0; }
+        .square-event { background-color: #e5d4f1; border-color: #cbb8e0; }
+        .square-start { background-color: #fefae0; border-color: #faedcd; }
+        .square-goal { background-color: #f1e4d4; border-color: #e0cbb8; transform: scale(1.2); }
+        .square .square-number { font-size: 0.7em; position: absolute; top: 5%; right: 10%; color: #6b7280; }
+        .player-token-container { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; width: 100%; height: 100%; }
+        .player-token { width: 40%; height: 40%; border-radius: 50%; margin: 2px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid white; }
+        #dice-face { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background-color: #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.1); transition: transform 0.5s; }
+        .dice-rolling { transform: scale(1.1) rotate(360deg); }
+        .modal.hidden { display: none; }
+        .skill-icon { font-size: 1.5rem; }
+        #event-card-deck {
+            background: #fff;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 80%;
+            max-width: 250px;
+        }
+        #event-card-deck .card-placeholder {
+            width: 100%;
+            height: 120px;
+            border: 3px dashed #cbd5e1;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            color: #94a3b8;
+        }
+    </style>
 </head>
-<body>
-    <h1>Este es el título principal de la página</h1>
-    <p>Aquí va el contenido de la página.</p>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Pantalla de Configuración Inicial -->
+    <div id="setup-screen" class="w-full max-w-md text-center bg-white p-8 rounded-2xl shadow-xl">
+        <h1 class="text-4xl font-bold text-sky-600 mb-2">Juego Vocacional</h1>
+        <p class="text-gray-500 mb-8">🧭 Edición con Habilidades y Eventos 🚀</p>
+        <div class="mb-8">
+            <label for="player-count" class="block text-lg font-semibold text-gray-700 mb-2">Jugadores: <span id="player-count-label" class="text-sky-600 font-bold">2</span></label>
+            <input id="player-count" type="range" min="1" max="4" value="2" class="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer range-lg accent-sky-500">
+        </div>
+        <button id="start-game-btn" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-4 rounded-lg text-xl transition duration-300 transform hover:scale-105">¡Comenzar Aventura!</button>
+    </div>
+
+    <!-- Pantalla de Juego -->
+    <div id="game-screen" class="hidden w-full max-w-screen-xl mx-auto">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-4 items-center">
+            
+            <!-- Panel Izquierdo: Control y Mochila -->
+            <div class="xl:col-span-1 bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center order-2 xl:order-1 h-full">
+                <div id="control-panel" class="w-full">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Panel de Control</h2>
+                    <div id="turn-indicator" class="w-full text-center mb-6 p-3 rounded-lg bg-gray-100">
+                        <p class="text-lg">Turno del:</p>
+                        <p id="current-player-label" class="text-2xl font-bold"></p>
+                    </div>
+                    <div class="flex justify-center mb-6">
+                        <div id="dice-face" class="text-5xl"><span>🎲</span></div>
+                    </div>
+                    <button id="roll-dice-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-xl transition shadow-lg">Lanzar Dado</button>
+                </div>
+                <div id="backpack-panel" class="w-full mt-6 border-t pt-4">
+                    <h3 class="text-xl font-bold text-gray-800 mb-3 text-center">Mochila de Habilidades 🎒</h3>
+                    <div id="skills-container" class="min-h-[80px] bg-gray-50 p-3 rounded-lg grid grid-cols-3 gap-2"></div>
+                </div>
+                <button id="restart-game-btn" class="w-full mt-auto bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition">Reiniciar Juego</button>
+            </div>
+
+            <!-- Tablero de Juego (Centro) -->
+            <div class="xl:col-span-2 order-1 xl:order-2 flex justify-center items-center">
+                <div id="board" class="board-container"></div>
+            </div>
+
+            <!-- Panel Derecho: Eventos -->
+            <div class="xl:col-span-1 order-3 flex flex-col items-center justify-center">
+                <div id="event-card-deck">
+                     <h3 class="text-xl font-bold text-gray-800 mb-3">Cartas de Evento</h3>
+                     <div class="card-placeholder">🔮</div>
+                     <p class="text-gray-500 mt-2 text-sm">Cae en una casilla 🔮 para sacar una carta.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="message-modal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center transform">
+            <p id="message-emoji" class="text-6xl mb-4"></p>
+            <h3 id="message-title" class="text-2xl font-bold text-gray-800 mb-2"></h3>
+            <p id="message-text" class="text-gray-600 mb-6"></p>
+            <div id="message-buttons" class="flex flex-col gap-2">
+                <button id="close-message-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-6 rounded-lg transition">Entendido</button>
+            </div>
+        </div>
+    </div>
+    <div id="event-modal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center transform">
+             <p class="text-6xl mb-4">✨</p>
+            <h3 id="event-title" class="text-2xl font-bold text-gray-800 mb-2"></h3>
+            <p id="event-text" class="text-gray-600 mb-6"></p>
+            <div id="event-options" class="flex flex-col gap-3"></div>
+        </div>
+    </div>
+    <div id="winner-modal" class="modal hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center transform">
+            <p class="text-7xl mb-4">🎉</p>
+            <h2 class="text-3xl font-bold text-amber-500 mb-4">¡Felicidades!</h2>
+            <p id="winner-text" class="text-2xl text-gray-700 font-semibold mb-2"></p>
+            <p class="text-gray-600 mb-8">Has llegado a la meta. ¡El viaje apenas comienza!</p>
+            <button id="play-again-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-8 rounded-lg transition">Jugar de Nuevo</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN DEL JUEGO ---
+        const TOTAL_SQUARES = 50;
+        const PRIZE_SQUARES_COUNT = 6, PENALTY_SQUARES_COUNT = 6, SKILL_SQUARES_COUNT = 5, EVENT_SQUARES_COUNT = 5;
+        const playerColors = ['#3b82f6', '#ef4444', '#22c55e', '#f97316'];
+        const playerIcons = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.0001 2.51327L14.4854 7.50021L19.4723 9.98551L14.4854 12.4708L12.0001 17.4577L9.5148 12.4708L4.52789 9.98551L9.5148 7.50021L12.0001 2.51327Z"></path></svg>`,`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22C8.13401 22 5 18.866 5 15C5 12.2913 6.53231 9.92449 8.75023 8.53424C8.75023 6.01818 10.12 4 12 4C13.88 4 15.2498 6.01818 15.2498 8.53424C17.4677 9.92449 19 12.2913 19 15C19 18.866 15.866 22 12 22Z"></path></svg>`,`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21 18H6C5.44772 18 5 17.5523 5 17V4C5 3.44772 5.44772 3 6 3H21C21.5523 3 22 3.44772 22 4V17C22 17.5523 21.5523 18 21 18ZM7 5V16H20V5H7ZM4 19H20V21H4C2.89543 21 2 20.1046 2 19V6H4V19Z"></path></svg>`,`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z"></path></svg>`];
+        const skills = { comunicacion: {name:"Comunicación", e:"🗣️"}, logica: {name:"Lógica", e:"🧠"}, creatividad: {name:"Creatividad", e:"🎨"}, empatia: {name:"Empatía", e:"❤️"}, resiliencia: {name:"Resiliencia", e:"💪"}};
+        const eventCards = [
+            {t:"Oportunidad de Debate", x:"Hay un debate sobre 'IA en la educación'.", o:[{t:"Participar activamente", a:{m:2, s:'comunicacion'}},{t:"Solo escuchar", a:{m:1}}]},
+            {t:"Proyecto en Equipo", x:"Tu profesor propone un proyecto complejo.", o:[{t:"Liderar el equipo", a:{m:3, s:'logica'}},{t:"Ser un miembro más", a:{m:1}}]},
+            {t:"Concurso de Arte", x:"La escuela organiza un concurso de arte mural.", o:[{t:"Diseñar un mural", a:{m:2, s:'creatividad'}},{t:"No participar", a:{}}]},
+            {t:"Conflicto entre Amigos", x:"Dos de tus amigos discuten fuertemente.", o:[{t:"Mediar entre ellos", a:{m:1, s:'empatia'}},{t:"No involucrarse", a:{m:-1}}]},
+            {t:"Reto Académico", x:"Una materia se te está complicando mucho.", o:[{t:"Pedir ayuda y estudiar más", a:{m:3, s:'resiliencia'}},{t:"Rendirse y aceptarlo", a:{m:-3}}]}
+        ];
+        const normalMessages = [{e:'🤔',t:'Momento de reflexión',x:'Te preguntas qué te apasiona realmente.'},{e:'📝',t:'Test Vocacional',x:'Encuentras un test de intereses en línea.'},{e:'🏛️',t:'Feria de Universidades',x:'Asistes a un evento para conocer opciones.'}];
+        const prizeMessages = [{e:'🎓',t:'¡Beca Ganada!',x:'Ganas una beca para un curso de verano.',m:4},{e:'🚀',t:'Consejo de Mentor',x:'Un mentor te da un consejo clave.',m:3},{e:'🏆',t:'Proyecto Exitoso',x:'Tu proyecto escolar recibe un premio.',m:5}];
+        const penaltyMessages = [{e:'😥',t:'Examen Reprobado',x:'Reprobaste un examen importante.',m:-4},{e:'🙁',t:'Presión Social',x:'Eliges una materia por tus amigos y no te gusta.',m:-3},{e:'😟',t:'Procrastinación',x:'Dejas todo para el último minuto.',m:-5}];
+        const boardLayout = [ {s:1,r:12,c:1},{s:2,r:12,c:2},{s:3,r:12,c:3},{s:4,r:12,c:4},{s:5,r:12,c:5},{s:6,r:12,c:6},{s:7,r:11,c:6},{s:8,r:10,c:6},{s:9,r:10,c:5},{s:10,r:10,c:4},{s:11,r:10,c:3},{s:12,r:10,c:2},{s:13,r:9,c:2},{s:14,r:8,c:2},{s:15,r:7,c:2},{s:16,r:6,c:2},{s:17,r:6,c:3},{s:18,r:6,c:4},{s:19,r:6,c:5},{s:20,r:6,c:6},{s:21,r:6,c:7},{s:22,r:6,c:8},{s:23,r:5,c:8},{s:24,r:4,c:8},{s:25,r:3,c:8},{s:26,r:2,c:8},{s:27,r:2,c:7},{s:28,r:2,c:6},{s:29,r:2,c:5},{s:30,r:2,c:4},{s:31,r:2,c:3},{s:32,r:3,c:3},{s:33,r:4,c:3},{s:34,r:5,c:3},{s:35,r:5,c:4},{s:36,r:5,c:5},{s:37,r:5,c:6},{s:38,r:5,c:7},{s:39,r:7,c:7},{s:40,r:8,c:7},{s:41,r:9,c:7},{s:42,r:9,c:8},{s:43,r:9,c:9},{s:44,r:9,c:10},{s:45,r:8,c:10},{s:46,r:7,c:10},{s:47,r:6,c:10},{s:48,r:5,c:10},{s:49,r:4,c:10},{s:50,r:3,c:10}];
+
+        let players = [], currentPlayerIndex = 0, boardSquares = [], gameInProgress = false;
+        let sounds;
+        
+        const setupScreen = document.getElementById('setup-screen'), gameScreen = document.getElementById('game-screen'), playerCountSlider = document.getElementById('player-count'), playerCountLabel = document.getElementById('player-count-label'), startGameBtn = document.getElementById('start-game-btn'), boardElement = document.getElementById('board'), currentPlayerLabel = document.getElementById('current-player-label'), diceFace = document.getElementById('dice-face'), rollDiceBtn = document.getElementById('roll-dice-btn'), messageModal = document.getElementById('message-modal'), messageEmoji = document.getElementById('message-emoji'), messageTitle = document.getElementById('message-title'), messageText = document.getElementById('message-text'), messageButtons = document.getElementById('message-buttons'), closeMessageBtn = document.getElementById('close-message-btn'), winnerModal = document.getElementById('winner-modal'), winnerText = document.getElementById('winner-text'), playAgainBtn = document.getElementById('play-again-btn'), restartGameBtn = document.getElementById('restart-game-btn'), skillsContainer = document.getElementById('skills-container'), eventModal = document.getElementById('event-modal'), eventTitle = document.getElementById('event-title'), eventText = document.getElementById('event-text'), eventOptions = document.getElementById('event-options');
+
+        function setupSounds() {
+            sounds = {
+                dice: new Tone.MembraneSynth().toDestination(),
+                move: new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:0.01,decay:0.1,sustain:0.2,release:0.2}}).toDestination(),
+                prize: new Tone.Synth({oscillator:{type:'triangle'},envelope:{attack:0.01,decay:0.2,sustain:0.1,release:0.2}}).toDestination(),
+                penalty: new Tone.Synth({oscillator:{type:'square'},envelope:{attack:0.01,decay:0.4,sustain:0,release:0.2}}).toDestination(),
+                win: new Tone.PolySynth(Tone.Synth).toDestination(),
+                click: new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:0.001,decay:0.1,sustain:0,release:0.1}}).toDestination(),
+                skill: new Tone.Synth({oscillator:{type:'sawtooth'},envelope:{attack:0.01,decay:0.2,sustain:0.2,release:0.2}}).toDestination(),
+                event: new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:0.2,decay:0.3,sustain:0.1,release:0.3}}).toDestination(),
+            };
+        }
+        function playSound(soundName) {
+            if (!sounds) return;
+            const now = Tone.now();
+            switch(soundName) {
+                case 'dice': sounds.dice.triggerAttackRelease('C2', '8n', now); break;
+                case 'move': sounds.move.triggerAttackRelease('C4', '16n', now); break;
+                case 'prize': sounds.prize.triggerAttackRelease('G5', '8n', now + 0.1); sounds.prize.triggerAttackRelease('E5', '8n', now); break;
+                case 'penalty': sounds.penalty.triggerAttackRelease('C3', '4n', now); break;
+                case 'win': sounds.win.triggerAttackRelease(['C4', 'E4', 'G4', 'C5'], '4n', now); break;
+                case 'click': sounds.click.triggerAttackRelease('C5', '16n', now); break;
+                case 'skill': sounds.skill.triggerAttackRelease('A4', '8n', now); break;
+                case 'event': sounds.event.triggerAttackRelease('F4', '4n', now); break;
+            }
+        }
+
+        function initializeBoard() {
+            boardSquares = Array(TOTAL_SQUARES + 1).fill({ type: 'normal' });
+            const specialCounts = { prize: PRIZE_SQUARES_COUNT, penalty: PENALTY_SQUARES_COUNT, skill: SKILL_SQUARES_COUNT, event: EVENT_SQUARES_COUNT };
+            const specialMessages = { prize: prizeMessages, penalty: penaltyMessages };
+            const availableSquares = Array.from({ length: TOTAL_SQUARES - 1 }, (_, i) => i + 1);
+            for (let i = availableSquares.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [availableSquares[i], availableSquares[j]] = [availableSquares[j], availableSquares[i]]; }
+            
+            Object.keys(specialCounts).forEach(type => {
+                for(let i=0; i < specialCounts[type]; i++) {
+                    const index = availableSquares.pop();
+                    if(type === 'skill') boardSquares[index] = { type, skill: Object.keys(skills)[i % Object.keys(skills).length] };
+                    else if(type === 'event') boardSquares[index] = { type };
+                    else boardSquares[index] = { type, ...specialMessages[type][i % specialMessages[type].length] };
+                }
+            });
+            availableSquares.forEach(index => { boardSquares[index] = { type: 'normal', ...normalMessages[Math.floor(Math.random() * normalMessages.length)] }; });
+            renderBoard();
+        }
+
+        function renderBoard() {
+            boardElement.innerHTML = '';
+            boardLayout.forEach(pos => {
+                const index = pos.s;
+                const square = document.createElement('div');
+                square.id = `square-${index}`;
+                square.classList.add('square', `square-${boardSquares[index].type}`);
+                square.style.gridRow = pos.r;
+                square.style.gridColumn = pos.c;
+                let emoji = '';
+                if (index === TOTAL_SQUARES) { emoji = '🏆'; }
+                else if (boardSquares[index].type === 'prize') { emoji = '🎁'; }
+                else if (boardSquares[index].type === 'penalty') { emoji = '💀'; }
+                else if (boardSquares[index].type === 'skill') { emoji = '📘'; }
+                else if (boardSquares[index].type === 'event') { emoji = '🔮'; }
+                square.innerHTML = `<span class="square-number">${index}</span><span class="text-2xl">${emoji}</span><div class="player-token-container"></div>`;
+                boardElement.appendChild(square);
+            });
+            const startSquare = document.createElement('div');
+            startSquare.id = 'square-0';
+            startSquare.classList.add('square', 'square-start');
+            startSquare.style.gridRow = '12'; startSquare.style.gridColumn = '1';
+            startSquare.innerHTML = `<span class="text-2xl">🏁</span><div class="player-token-container"></div>`;
+            boardElement.prepend(startSquare);
+        }
+
+        function updateBoardWithTokens() {
+            document.querySelectorAll('.player-token').forEach(t => t.remove());
+            players.forEach(player => {
+                const square = document.getElementById(`square-${player.position}`);
+                if (square) {
+                    const tokenContainer = square.querySelector('.player-token-container');
+                    const token = document.createElement('div');
+                    token.classList.add('player-token');
+                    token.style.backgroundColor = player.color;
+                    token.innerHTML = `<div class="w-full h-full text-white p-0.5">${player.icon}</div>`;
+                    tokenContainer.appendChild(token);
+                }
+            });
+        }
+        
+        function updateBackpack() {
+            const player = players[currentPlayerIndex];
+            skillsContainer.innerHTML = '';
+            if (player.skills.length === 0) {
+                skillsContainer.innerHTML = `<p class="text-gray-400 col-span-3 text-center text-sm">Tu mochila está vacía.</p>`;
+            } else {
+                player.skills.forEach(skillKey => {
+                    const skill = skills[skillKey];
+                    const skillEl = document.createElement('div');
+                    skillEl.classList.add('flex', 'flex-col', 'items-center', 'justify-center', 'p-1', 'bg-white', 'rounded');
+                    skillEl.innerHTML = `<span class="skill-icon">${skill.e}</span><span class="text-xs text-center">${skill.name}</span>`;
+                    skillsContainer.appendChild(skillEl);
+                });
+            }
+        }
+
+        function initializePlayers() {
+            players = [];
+            for (let i = 0; i < parseInt(playerCountSlider.value); i++) {
+                players.push({ id: i, name: `Jugador ${i + 1}`, position: 0, color: playerColors[i], icon: playerIcons[i], skills: [] });
+            }
+            updateBoardWithTokens();
+            updateBackpack();
+        }
+
+        function updateTurnIndicator() {
+            const player = players[currentPlayerIndex];
+            currentPlayerLabel.textContent = player.name;
+            currentPlayerLabel.style.color = player.color;
+            updateBackpack();
+        }
+
+        function showMessage(emoji, title, text, buttons) {
+            messageEmoji.textContent = emoji;
+            messageTitle.textContent = title;
+            messageText.textContent = text;
+            messageButtons.innerHTML = '';
+            buttons.forEach(btn => messageButtons.appendChild(btn));
+            messageModal.classList.remove('hidden');
+        }
+
+        async function handleTurn() {
+            if (!gameInProgress) return;
+            gameInProgress = false;
+            rollDiceBtn.disabled = true;
+            rollDiceBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            playSound('dice');
+            diceFace.classList.add('dice-rolling');
+            const rollResult = Math.floor(Math.random() * 6) + 1;
+            await new Promise(resolve => setTimeout(resolve, 500));
+            diceFace.classList.remove('dice-rolling');
+            diceFace.textContent = rollResult;
+
+            const player = players[currentPlayerIndex];
+            await movePlayerSmoothly(player, player.position, Math.min(player.position + rollResult, TOTAL_SQUARES));
+            handleSquareAction();
+        }
+
+        function handleSquareAction() {
+            const player = players[currentPlayerIndex];
+            const squareData = boardSquares[player.position];
+
+            if (player.position >= TOTAL_SQUARES) {
+                checkWinCondition();
+                return;
+            }
+
+            switch(squareData.type) {
+                case 'prize':
+                    playSound('prize');
+                    showMessage(squareData.e, squareData.t, squareData.x, [createButton('¡Genial!', () => handleSpecialMove(squareData))]);
+                    break;
+                case 'penalty':
+                    playSound('penalty');
+                    const buttons = [createButton('Aceptar castigo', () => handleSpecialMove(squareData))];
+                    if (player.skills.length > 0) {
+                        buttons.unshift(createButton(`Usar habilidad (${player.skills.length})`, () => {
+                            player.skills.pop();
+                            updateBackpack();
+                            showMessage('🛡️', '¡Habilidad Usada!', 'Evitaste el castigo. ¡Bien hecho!', [createButton('Continuar', nextTurn)]);
+                        }, 'bg-yellow-500', 'hover:bg-yellow-600'));
+                    }
+                    showMessage(squareData.e, squareData.t, squareData.x, buttons);
+                    break;
+                case 'skill':
+                    playSound('skill');
+                    player.skills.push(squareData.skill);
+                    updateBackpack();
+                    showMessage(skills[squareData.skill].e, '¡Nueva Habilidad!', `Has adquirido la habilidad de ${skills[squareData.skill].name}.`, [createButton('¡Excelente!', nextTurn)]);
+                    break;
+                case 'event':
+                    playSound('event');
+                    const card = eventCards[Math.floor(Math.random() * eventCards.length)];
+                    eventTitle.textContent = card.t;
+                    eventText.textContent = card.x;
+                    eventOptions.innerHTML = '';
+                    card.o.forEach(opt => {
+                        const btn = createButton(opt.t, () => {
+                            eventModal.classList.add('hidden');
+                            handleEventAction(opt.a);
+                        });
+                        eventOptions.appendChild(btn);
+                    });
+                    eventModal.classList.remove('hidden');
+                    break;
+                default:
+                    showMessage(squareData.e, squareData.t, squareData.x, [createButton('Continuar', nextTurn)]);
+            }
+        }
+        
+        async function handleEventAction(action) {
+            const player = players[currentPlayerIndex];
+            if (action.s && !player.skills.includes(action.s)) {
+                player.skills.push(action.s);
+                updateBackpack();
+                playSound('skill');
+            }
+            if (action.m) {
+                await movePlayerSmoothly(player, player.position, Math.max(0, Math.min(player.position + action.m, TOTAL_SQUARES)));
+            }
+            checkWinCondition();
+        }
+
+        function createButton(text, onClick, ...classes) {
+            const btn = document.createElement('button');
+            btn.textContent = text;
+            btn.classList.add('w-full', 'text-white', 'font-bold', 'py-2', 'px-6', 'rounded-lg', 'transition', ...classes);
+            if(classes.length === 0) btn.classList.add('bg-sky-500', 'hover:bg-sky-600');
+            btn.addEventListener('click', () => {
+                playSound('click');
+                messageModal.classList.add('hidden');
+                onClick();
+            }, { once: true });
+            return btn;
+        }
+        
+        async function handleSpecialMove(squareData) {
+            await movePlayerSmoothly(players[currentPlayerIndex], players[currentPlayerIndex].position, Math.max(0, players[currentPlayerIndex].position + squareData.m));
+            checkWinCondition();
+        }
+        
+        function checkWinCondition() {
+            if (players[currentPlayerIndex].position >= TOTAL_SQUARES) {
+                playSound('win');
+                winnerText.textContent = `${players[currentPlayerIndex].name} ha ganado!`;
+                winnerText.style.color = players[currentPlayerIndex].color;
+                winnerModal.classList.remove('hidden');
+            } else {
+                nextTurn();
+            }
+        }
+
+        async function movePlayerSmoothly(player, from, to) {
+            const direction = to > from ? 1 : -1;
+            for (let i = from + direction; (direction > 0 ? i <= to : i >= to); i += direction) {
+                player.position = i;
+                updateBoardWithTokens();
+                playSound('move');
+                await new Promise(resolve => setTimeout(resolve, 250));
+            }
+        }
+
+        function nextTurn() {
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+            updateTurnIndicator();
+            gameInProgress = true;
+            rollDiceBtn.disabled = false;
+            rollDiceBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        
+        function startGame() {
+            playSound('click');
+            if (Tone.context.state !== 'running') { Tone.start(); }
+            setupScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            initializeBoard();
+            initializePlayers();
+            updateTurnIndicator();
+            gameInProgress = true;
+        }
+        
+        function resetGame() {
+            playSound('click');
+            document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+            gameScreen.classList.add('hidden');
+            setupScreen.classList.remove('hidden');
+            currentPlayerIndex = 0;
+            diceFace.innerHTML = '<span>🎲</span>';
+            rollDiceBtn.disabled = false;
+            rollDiceBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        playerCountSlider.addEventListener('input', (e) => { playerCountLabel.textContent = e.target.value; });
+        startGameBtn.addEventListener('click', startGame);
+        rollDiceBtn.addEventListener('click', handleTurn);
+        playAgainBtn.addEventListener('click', resetGame);
+        restartGameBtn.addEventListener('click', resetGame);
+        
+        setupSounds();
+    </script>
 </body>
 </html>
