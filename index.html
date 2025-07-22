@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juego Vocacional 3.0</title>
+    <title>Juego Vocacional 3.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,10 +20,10 @@
             display: grid;
             grid-template-columns: repeat(12, 1fr);
             grid-template-rows: repeat(12, 1fr);
-            width: 80vmin;
-            height: 80vmin;
-            max-width: 700px;
-            max-height: 700px;
+            width: 90vmin;
+            height: 90vmin;
+            max-width: 800px;
+            max-height: 800px;
             gap: 4px;
         }
         .square {
@@ -52,16 +52,16 @@
         .dice-rolling { transform: scale(1.1) rotate(360deg); }
         .modal.hidden { display: none; }
         .skill-icon { font-size: 1.5rem; }
-        #event-card-deck {
+        .panel {
             background: #fff;
             border-radius: 20px;
             padding: 20px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
             text-align: center;
-            width: 80%;
-            max-width: 250px;
+            width: 100%;
+            max-width: 300px;
         }
-        #event-card-deck .card-placeholder {
+        .card-placeholder {
             width: 100%;
             height: 120px;
             border: 3px dashed #cbd5e1;
@@ -88,40 +88,42 @@
     </div>
 
     <!-- Pantalla de Juego -->
-    <div id="game-screen" class="hidden w-full max-w-screen-xl mx-auto">
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-4 items-center">
+    <div id="game-screen" class="hidden w-full max-w-screen-2xl mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-center">
             
-            <!-- Panel Izquierdo: Control y Mochila -->
-            <div class="xl:col-span-1 bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center order-2 xl:order-1 h-full">
-                <div id="control-panel" class="w-full">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Panel de Control</h2>
-                    <div id="turn-indicator" class="w-full text-center mb-6 p-3 rounded-lg bg-gray-100">
-                        <p class="text-lg">Turno del:</p>
-                        <p id="current-player-label" class="text-2xl font-bold"></p>
-                    </div>
-                    <div class="flex justify-center mb-6">
-                        <div id="dice-face" class="text-5xl"><span>🎲</span></div>
-                    </div>
-                    <button id="roll-dice-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-xl transition shadow-lg">Lanzar Dado</button>
+            <!-- Panel Izquierdo: Mochila -->
+            <div class="lg:col-span-1 order-2 lg:order-1 flex justify-center">
+                <div class="panel">
+                    <h3 class="text-xl font-bold text-gray-800 mb-3">Mochila de Habilidades 🎒</h3>
+                    <div id="skills-container" class="min-h-[120px] bg-gray-50 p-3 rounded-lg grid grid-cols-3 gap-2"></div>
+                    <button id="restart-game-btn" class="w-full mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition">Reiniciar Juego</button>
                 </div>
-                <div id="backpack-panel" class="w-full mt-6 border-t pt-4">
-                    <h3 class="text-xl font-bold text-gray-800 mb-3 text-center">Mochila de Habilidades 🎒</h3>
-                    <div id="skills-container" class="min-h-[80px] bg-gray-50 p-3 rounded-lg grid grid-cols-3 gap-2"></div>
-                </div>
-                <button id="restart-game-btn" class="w-full mt-auto bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition">Reiniciar Juego</button>
             </div>
 
             <!-- Tablero de Juego (Centro) -->
-            <div class="xl:col-span-2 order-1 xl:order-2 flex justify-center items-center">
+            <div class="lg:col-span-3 order-1 lg:order-2 flex justify-center items-center">
                 <div id="board" class="board-container"></div>
             </div>
 
-            <!-- Panel Derecho: Eventos -->
-            <div class="xl:col-span-1 order-3 flex flex-col items-center justify-center">
-                <div id="event-card-deck">
-                     <h3 class="text-xl font-bold text-gray-800 mb-3">Cartas de Evento</h3>
-                     <div class="card-placeholder">🔮</div>
-                     <p class="text-gray-500 mt-2 text-sm">Cae en una casilla 🔮 para sacar una carta.</p>
+            <!-- Panel Derecho: Controles y Eventos -->
+            <div class="lg:col-span-1 order-3 flex justify-center">
+                <div class="flex flex-col gap-6 w-full max-w-sm">
+                    <div id="control-panel" class="panel">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Panel de Control</h2>
+                        <div id="turn-indicator" class="w-full text-center mb-6 p-3 rounded-lg bg-gray-100">
+                            <p class="text-lg">Turno del:</p>
+                            <p id="current-player-label" class="text-2xl font-bold"></p>
+                        </div>
+                        <div class="flex justify-center mb-6">
+                            <div id="dice-face" class="text-5xl"><span>🎲</span></div>
+                        </div>
+                        <button id="roll-dice-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-xl transition shadow-lg">Lanzar Dado</button>
+                    </div>
+                    <div id="event-card-deck" class="panel">
+                         <h3 class="text-xl font-bold text-gray-800 mb-3">Cartas de Evento</h3>
+                         <div class="card-placeholder">🔮</div>
+                         <p class="text-gray-500 mt-2 text-sm">Cae en una casilla 🔮 para sacar una carta.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -133,9 +135,7 @@
             <p id="message-emoji" class="text-6xl mb-4"></p>
             <h3 id="message-title" class="text-2xl font-bold text-gray-800 mb-2"></h3>
             <p id="message-text" class="text-gray-600 mb-6"></p>
-            <div id="message-buttons" class="flex flex-col gap-2">
-                <button id="close-message-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-6 rounded-lg transition">Entendido</button>
-            </div>
+            <div id="message-buttons" class="flex flex-col gap-2"></div>
         </div>
     </div>
     <div id="event-modal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -178,7 +178,7 @@
         let players = [], currentPlayerIndex = 0, boardSquares = [], gameInProgress = false;
         let sounds;
         
-        const setupScreen = document.getElementById('setup-screen'), gameScreen = document.getElementById('game-screen'), playerCountSlider = document.getElementById('player-count'), playerCountLabel = document.getElementById('player-count-label'), startGameBtn = document.getElementById('start-game-btn'), boardElement = document.getElementById('board'), currentPlayerLabel = document.getElementById('current-player-label'), diceFace = document.getElementById('dice-face'), rollDiceBtn = document.getElementById('roll-dice-btn'), messageModal = document.getElementById('message-modal'), messageEmoji = document.getElementById('message-emoji'), messageTitle = document.getElementById('message-title'), messageText = document.getElementById('message-text'), messageButtons = document.getElementById('message-buttons'), closeMessageBtn = document.getElementById('close-message-btn'), winnerModal = document.getElementById('winner-modal'), winnerText = document.getElementById('winner-text'), playAgainBtn = document.getElementById('play-again-btn'), restartGameBtn = document.getElementById('restart-game-btn'), skillsContainer = document.getElementById('skills-container'), eventModal = document.getElementById('event-modal'), eventTitle = document.getElementById('event-title'), eventText = document.getElementById('event-text'), eventOptions = document.getElementById('event-options');
+        const setupScreen = document.getElementById('setup-screen'), gameScreen = document.getElementById('game-screen'), playerCountSlider = document.getElementById('player-count'), playerCountLabel = document.getElementById('player-count-label'), startGameBtn = document.getElementById('start-game-btn'), boardElement = document.getElementById('board'), currentPlayerLabel = document.getElementById('current-player-label'), diceFace = document.getElementById('dice-face'), rollDiceBtn = document.getElementById('roll-dice-btn'), messageModal = document.getElementById('message-modal'), messageEmoji = document.getElementById('message-emoji'), messageTitle = document.getElementById('message-title'), messageText = document.getElementById('message-text'), messageButtons = document.getElementById('message-buttons'), winnerModal = document.getElementById('winner-modal'), winnerText = document.getElementById('winner-text'), playAgainBtn = document.getElementById('play-again-btn'), restartGameBtn = document.getElementById('restart-game-btn'), skillsContainer = document.getElementById('skills-container'), eventModal = document.getElementById('event-modal'), eventTitle = document.getElementById('event-title'), eventText = document.getElementById('event-text'), eventOptions = document.getElementById('event-options');
 
         function setupSounds() {
             sounds = {
@@ -276,7 +276,7 @@
                 player.skills.forEach(skillKey => {
                     const skill = skills[skillKey];
                     const skillEl = document.createElement('div');
-                    skillEl.classList.add('flex', 'flex-col', 'items-center', 'justify-center', 'p-1', 'bg-white', 'rounded');
+                    skillEl.classList.add('flex', 'flex-col', 'items-center', 'justify-center', 'p-1', 'bg-white', 'rounded', 'shadow-sm');
                     skillEl.innerHTML = `<span class="skill-icon">${skill.e}</span><span class="text-xs text-center">${skill.name}</span>`;
                     skillsContainer.appendChild(skillEl);
                 });
@@ -365,10 +365,14 @@
                     eventText.textContent = card.x;
                     eventOptions.innerHTML = '';
                     card.o.forEach(opt => {
-                        const btn = createButton(opt.t, () => {
+                        const btn = document.createElement('button');
+                        btn.textContent = opt.t;
+                        btn.classList.add('w-full', 'text-white', 'font-bold', 'py-2', 'px-6', 'rounded-lg', 'transition', 'bg-sky-500', 'hover:bg-sky-600');
+                        btn.onclick = () => {
+                            playSound('click');
                             eventModal.classList.add('hidden');
                             handleEventAction(opt.a);
-                        });
+                        };
                         eventOptions.appendChild(btn);
                     });
                     eventModal.classList.remove('hidden');
@@ -380,27 +384,46 @@
         
         async function handleEventAction(action) {
             const player = players[currentPlayerIndex];
+            let outcomeTitle = "Decisión Tomada";
+            let outcomeMessage = "Tu elección ha marcado tu camino.";
+            let outcomeEmoji = "👍";
+
             if (action.s && !player.skills.includes(action.s)) {
                 player.skills.push(action.s);
-                updateBackpack();
                 playSound('skill');
+                outcomeTitle = "¡Habilidad Obtenida!";
+                outcomeMessage = `Has añadido '${skills[action.s].name}' a tu mochila.`;
+                outcomeEmoji = skills[action.s].e;
             }
-            if (action.m) {
-                await movePlayerSmoothly(player, player.position, Math.max(0, Math.min(player.position + action.m, TOTAL_SQUARES)));
-            }
-            checkWinCondition();
+            
+            updateBackpack();
+
+            const endTurnCallback = async () => {
+                if (action.m) {
+                    await movePlayerSmoothly(player, player.position, Math.max(0, Math.min(player.position + action.m, TOTAL_SQUARES)));
+                }
+                checkWinCondition();
+            };
+
+            showMessage(outcomeEmoji, outcomeTitle, outcomeMessage, [createButton("Continuar", endTurnCallback, true)]);
         }
 
-        function createButton(text, onClick, ...classes) {
+        function createButton(text, onClick, isAsync = false, ...classes) {
             const btn = document.createElement('button');
             btn.textContent = text;
             btn.classList.add('w-full', 'text-white', 'font-bold', 'py-2', 'px-6', 'rounded-lg', 'transition', ...classes);
             if(classes.length === 0) btn.classList.add('bg-sky-500', 'hover:bg-sky-600');
-            btn.addEventListener('click', () => {
+            
+            const clickHandler = async () => {
                 playSound('click');
                 messageModal.classList.add('hidden');
-                onClick();
-            }, { once: true });
+                if (isAsync) {
+                    await onClick();
+                } else {
+                    onClick();
+                }
+            };
+            btn.addEventListener('click', clickHandler, { once: true });
             return btn;
         }
         
