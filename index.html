@@ -8,10 +8,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+    <!-- Firebase SDKs (using type="module" for direct function imports) -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
     <!-- Tone.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <style>
@@ -19,7 +19,7 @@
             font-family: 'Inter', sans-serif;
         }
         canvas {
-            touch-action: none; /* Prevent scrolling/zooming on canvas for better drawing experience */
+            touch-action: none; /* Evita el desplazamiento/zoom en el lienzo para una mejor experiencia de dibujo */
         }
         /* Animación para el mensaje de guardado */
         @keyframes fade-in-out {
@@ -38,7 +38,12 @@
         <!-- El contenido de la aplicación se renderizará dinámicamente aquí por JavaScript -->
     </div>
 
-    <script>
+    <script type="module">
+        // Importa las funciones de Firebase directamente
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
         // Define variables globales para la configuración de Firebase y el ID de la aplicación
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -53,19 +58,23 @@
 
         // Variables de estado para el tablero de dibujo actual
         let drawing = false;
+        let isTextMode = false; // Nuevo: modo de inserción de texto
         let currentStroke = [];
-        let strokes = []; // Trazos para el tablero activo actual
+        let strokes = []; // Trazos y elementos de texto para el tablero activo actual
         let color = '#000000';
         let brushSize = 5;
+        let brushStyle = 'round'; // Nuevo: estilo del pincel
+        let currentFontSize = 20; // Nuevo: tamaño de fuente para el texto
+        let currentFontFamily = 'Inter'; // Nuevo: familia de fuente para el texto
         let backgroundImageUrl = null;
         const backgroundImageRef = new Image(); // Referencia al objeto Image para la imagen de fondo
 
         // Datos de imágenes de fondo predefinidas
+        // Se ha actualizado para incluir solo la plantilla de Persona con una URL de GitHub.
+        // ¡IMPORTANTE! Reemplaza 'your-username', 'your-repo' y 'main' con los detalles correctos de tu repositorio de GitHub.
+        // Mientras tanto, se usa una imagen de marcador de posición para evitar errores de carga.
         const backgroundImages = [
             { id: 'person', url: 'https://placehold.co/400x600/aabbcc/ffffff?text=Persona', name: 'Persona 🧍' },
-            { id: 'house', url: 'https://placehold.co/600x400/ccbbdd/ffffff?text=Casa', name: 'Casa 🏠' },
-            { id: 'tree', url: 'https://placehold.co/300x500/ddeeff/ffffff?text=Arbol', name: 'Árbol 🌳' },
-            { id: 'cloud', url: 'https://placehold.co/500x300/eefaff/000000?text=Nube', name: 'Nube ☁️' },
         ];
 
         // Instancia global de Tone.js Synth para sonidos de clic
@@ -74,7 +83,7 @@
         // --- Inicialización de Firebase ---
         async function initializeFirebase() {
             try {
-                // Usa las funciones directamente del SDK modular de Firebase
+                // Usa las funciones importadas directamente
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -121,14 +130,12 @@
 
         // --- Lógica de Dibujo en el Canvas ---
         // Función para dibujar un solo trazo en el lienzo
-        function drawStroke(context, stroke) {
-            if (!context || !stroke || !stroke.points || stroke.points.length < 2) return;
-
+        function drawPath(context, stroke) {
             context.beginPath();
             context.moveTo(stroke.points[0].x, stroke.points[0].y);
             context.strokeStyle = stroke.color;
             context.lineWidth = stroke.brushSize;
-            context.lineCap = 'round';
+            context.lineCap = stroke.brushStyle || 'round'; // Usa el estilo del pincel o 'round' por defecto
             context.lineJoin = 'round';
 
             for (let i = 1; i < stroke.points.length; i++) {
@@ -137,7 +144,14 @@
             context.stroke();
         }
 
-        // Función para redibujar todo el contenido del lienzo (fondo y trazos)
+        // Función para dibujar texto en el lienzo
+        function drawText(context, textElement) {
+            context.font = `${textElement.fontSize}px ${textElement.fontFamily}`;
+            context.fillStyle = textElement.color;
+            context.fillText(textElement.text, textElement.x, textElement.y);
+        }
+
+        // Función para redibujar todo el contenido del lienzo (fondo, trazos y texto)
         function redrawCanvas() {
             const canvas = document.getElementById('drawingCanvas');
             if (!canvas) return;
@@ -151,18 +165,25 @@
                 context.drawImage(backgroundImageRef, 0, 0, canvas.width, canvas.height);
             }
 
-            // Dibuja todos los trazos existentes
-            strokes.forEach(stroke => {
-                drawStroke(context, stroke);
+            // Dibuja todos los elementos (trazos y texto)
+            strokes.forEach(element => {
+                if (element.type === 'drawing') {
+                    drawPath(context, element);
+                } else if (element.type === 'text') {
+                    drawText(context, element);
+                } else if (element.type === 'fill') { // Maneja el tipo 'fill'
+                    context.fillStyle = element.color;
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                }
             });
 
-            // Dibuja el trazo actual que está siendo dibujado activamente por el usuario
-            if (currentStroke.length > 0 && drawing) {
+            // Dibuja el trazo actual que está siendo dibujado activamente por el usuario (si no está en modo texto)
+            if (currentStroke.length > 0 && drawing && !isTextMode) {
                 context.beginPath();
                 context.moveTo(currentStroke[0].x, currentStroke[0].y);
                 context.strokeStyle = color;
                 context.lineWidth = brushSize;
-                context.lineCap = 'round';
+                context.lineCap = brushStyle;
                 context.lineJoin = 'round';
                 for (let i = 1; i < currentStroke.length; i++) {
                     context.lineTo(currentStroke[i].x, currentStroke[i].y);
@@ -182,30 +203,8 @@
             }
         }
 
-        // Maneja el evento de presionar el ratón/tocar para comenzar a dibujar
-        function startDrawing(e) {
-            if (!userId) {
-                console.warn("Usuario no autenticado aún. No se puede iniciar el dibujo.");
-                return;
-            }
-            drawing = true;
-            const canvas = document.getElementById('drawingCanvas');
-            const rect = canvas.getBoundingClientRect();
-            let x, y;
-
-            if (e.touches) { // Para eventos táctiles
-                x = e.touches[0].clientX - rect.left;
-                y = e.touches[0].clientY - rect.top;
-            } else { // Para eventos de ratón
-                x = e.clientX - rect.left;
-                y = e.clientY - rect.top;
-            }
-            currentStroke = [{ x, y }];
-        }
-
-        // Maneja el evento de mover el ratón/tocar para continuar dibujando
-        function draw(e) {
-            if (!drawing) return;
+        // Manejador general de eventos del canvas
+        async function handleCanvasInteraction(e) {
             const canvas = document.getElementById('drawingCanvas');
             const rect = canvas.getBoundingClientRect();
             let x, y;
@@ -217,29 +216,58 @@
                 x = e.clientX - rect.left;
                 y = e.clientY - rect.top;
             }
-            currentStroke.push({ x, y });
-            redrawCanvas(); // Redibuja continuamente mientras se dibuja
-        }
 
-        // Maneja el evento de soltar el ratón/tocar para detener el dibujo y guardar el trazo en Firestore
-        async function stopDrawing() {
-            drawing = false;
-            if (currentStroke.length > 1 && userId && db && currentBoardId) {
-                try {
-                    // Usa las funciones de Firestore directamente
-                    const strokesCollectionRef = collection(db, `artifacts/${appId}/public/data/boards/${currentBoardId}/strokes`);
-                    await addDoc(strokesCollectionRef, {
-                        userId: userId,
-                        points: JSON.stringify(currentStroke), // Almacena los puntos como cadena JSON
-                        color: color,
-                        brushSize: brushSize,
-                        timestamp: serverTimestamp() // Usa la marca de tiempo del servidor para ordenar
-                    });
-                } catch (error) {
-                    console.error("Error al guardar el trazo:", error);
+            if (isTextMode && e.type === 'mousedown') {
+                playClickSound();
+                const textInput = prompt("Introduce el texto:");
+                if (textInput !== null && textInput.trim() !== '') {
+                    try {
+                        const strokesCollectionRef = collection(db, `artifacts/${appId}/public/data/boards/${currentBoardId}/strokes`);
+                        await addDoc(strokesCollectionRef, {
+                            type: 'text',
+                            userId: userId,
+                            text: textInput,
+                            x: x,
+                            y: y,
+                            color: color,
+                            fontSize: currentFontSize,
+                            fontFamily: currentFontFamily,
+                            timestamp: serverTimestamp()
+                        });
+                    } catch (error) {
+                        console.error("Error al guardar el texto:", error);
+                    }
+                }
+                isTextMode = false; // Desactiva el modo texto después de la inserción
+                renderDrawingBoard(); // Vuelve a renderizar para actualizar el estado del botón
+            } else if (!isTextMode) {
+                if (e.type === 'mousedown') {
+                    drawing = true;
+                    currentStroke = [{ x, y }];
+                } else if (e.type === 'mousemove' && drawing) {
+                    currentStroke.push({ x, y });
+                    redrawCanvas();
+                } else if (e.type === 'mouseup' || e.type === 'mouseleave' || e.type === 'touchend' || e.type === 'touchcancel') {
+                    if (drawing && currentStroke.length > 1 && userId && db && currentBoardId) {
+                        try {
+                            const strokesCollectionRef = collection(db, `artifacts/${appId}/public/data/boards/${currentBoardId}/strokes`);
+                            await addDoc(strokesCollectionRef, {
+                                type: 'drawing',
+                                userId: userId,
+                                points: JSON.stringify(currentStroke),
+                                color: color,
+                                brushSize: brushSize,
+                                brushStyle: brushStyle, // Guarda el estilo del pincel
+                                timestamp: serverTimestamp()
+                            });
+                        } catch (error) {
+                            console.error("Error al guardar el trazo:", error);
+                        }
+                    }
+                    drawing = false;
+                    currentStroke = [];
                 }
             }
-            currentStroke = []; // Limpia el trazo actual después de guardar
         }
 
         // --- Listeners y Operaciones de Firestore ---
@@ -256,21 +284,28 @@
             const strokesCollectionRef = collection(db, `artifacts/${appId}/public/data/boards/${boardId}/strokes`);
             const q = query(strokesCollectionRef, orderBy('timestamp'));
 
-            // Listener para los trazos
+            // Listener para los trazos y elementos de texto
             unsubscribeStrokes = onSnapshot(q, (snapshot) => {
-                const fetchedStrokes = [];
+                const fetchedElements = [];
                 snapshot.forEach((d) => {
                     const data = d.data();
-                    fetchedStrokes.push({
-                        id: d.id,
-                        ...data,
-                        points: JSON.parse(data.points) // Asegura que los puntos se analicen de nuevo a un array
-                    });
+                    if (data.type === 'drawing') {
+                        fetchedElements.push({
+                            id: d.id,
+                            ...data,
+                            points: JSON.parse(data.points)
+                        });
+                    } else if (data.type === 'text' || data.type === 'fill') { // Incluye el tipo 'fill'
+                        fetchedElements.push({
+                            id: d.id,
+                            ...data
+                        });
+                    }
                 });
-                strokes = fetchedStrokes;
+                strokes = fetchedElements;
                 redrawCanvas();
             }, (error) => {
-                console.error(`Error al obtener los trazos para el tablero ${boardId}:`, error);
+                console.error(`Error al obtener los elementos para el tablero ${boardId}:`, error);
             });
 
             // Listener para la configuración del tablero (imagen de fondo)
@@ -320,6 +355,25 @@
             }
         }
 
+        // Función para rellenar el lienzo con el color actual
+        async function fillCanvas() {
+            playClickSound();
+            if (!db || !currentBoardId || !userId) return;
+
+            // Crea un "trazo" de tipo 'fill' que cubre todo el lienzo
+            try {
+                const strokesCollectionRef = collection(db, `artifacts/${appId}/public/data/boards/${currentBoardId}/strokes`);
+                await addDoc(strokesCollectionRef, {
+                    type: 'fill',
+                    userId: userId,
+                    color: color,
+                    timestamp: serverTimestamp()
+                });
+            } catch (error) {
+                console.error("Error al rellenar el lienzo:", error);
+            }
+        }
+
         // Función para el botón "Guardar Dibujo"
         function handleSaveDrawing() {
             playClickSound();
@@ -339,7 +393,6 @@
             playClickSound();
             if (!db || !currentBoardId) return;
             try {
-                // Usa las funciones de Firestore directamente
                 const boardSettingsDocRef = doc(db, `artifacts/${appId}/public/data/boardSettings`, currentBoardId);
                 await setDoc(boardSettingsDocRef, { backgroundImageUrl: imageUrl }, { merge: true });
             } catch (error) {
@@ -352,7 +405,6 @@
             playClickSound();
             if (!db || !currentBoardId) return;
             try {
-                // Usa las funciones de Firestore directamente
                 const boardSettingsDocRef = doc(db, `artifacts/${appId}/public/data/boardSettings`, currentBoardId);
                 await setDoc(boardSettingsDocRef, { backgroundImageUrl: null }, { merge: true });
             } catch (error) {
@@ -382,11 +434,12 @@
                 const button = document.createElement('button');
                 button.className = "px-4 py-3 bg-blue-500 text-white rounded-md shadow-md hover:bg-blue-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transform hover:scale-105";
                 button.textContent = `Pizarra ${i} 🎨`;
-                button.onclick = () => {
+                // Adjuntar listener de evento en lugar de onclick en línea
+                button.addEventListener('click', () => {
                     playClickSound();
                     currentBoardId = `pizarra-${i}`;
                     renderApp(); // Vuelve a renderizar para mostrar el tablero de dibujo
-                };
+                });
                 boardButtonsContainer.appendChild(button);
             }
         }
@@ -416,30 +469,56 @@
                             <span id="brushSizeValue" class="text-gray-700">${brushSize}px</span>
                         </label>
 
-                        <div class="flex flex-wrap gap-2">
-                            ${backgroundImages.map(img => `
-                                <button onclick="setBackgroundImage('${img.url}')"
-                                    class="px-4 py-2 bg-purple-500 text-white rounded-md shadow-md hover:bg-purple-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transform hover:scale-105">
-                                    ${img.name}
-                                </button>
-                            `).join('')}
-                            <button onclick="clearBackgroundImage()"
-                                class="px-4 py-2 bg-orange-500 text-white rounded-md shadow-md hover:bg-orange-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-50 transform hover:scale-105">
-                                Quitar Fondo 🚫
-                            </button>
+                        <label for="brushStyle" class="flex items-center space-x-2">
+                            <span class="text-gray-700">Estilo Pincel:</span>
+                            <select id="brushStyle" class="p-2 rounded-md border border-gray-300">
+                                <option value="round" ${brushStyle === 'round' ? 'selected' : ''}>Redondo</option>
+                                <option value="butt" ${brushStyle === 'butt' ? 'selected' : ''}>Plano</option>
+                                <option value="square" ${brushStyle === 'square' ? 'selected' : ''}>Cuadrado</option>
+                            </select>
+                        </label>
+
+                        <button id="textModeToggle"
+                            class="px-6 py-2 ${isTextMode ? 'bg-yellow-600' : 'bg-yellow-500'} text-white rounded-md shadow-md hover:bg-yellow-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transform hover:scale-105">
+                            Insertar Texto 📝
+                        </button>
+
+                        <label for="fontSize" class="flex items-center space-x-2">
+                            <span class="text-gray-700">Tamaño Texto:</span>
+                            <input type="number" id="fontSize" min="10" max="72" value="${currentFontSize}"
+                                class="w-20 p-2 rounded-md border border-gray-300" />
+                        </label>
+
+                        <label for="fontFamily" class="flex items-center space-x-2">
+                            <span class="text-gray-700">Fuente:</span>
+                            <select id="fontFamily" class="p-2 rounded-md border border-gray-300">
+                                <option value="Inter" ${currentFontFamily === 'Inter' ? 'selected' : ''}>Inter</option>
+                                <option value="Arial" ${currentFontFamily === 'Arial' ? 'selected' : ''}>Arial</option>
+                                <option value="Verdana" ${currentFontFamily === 'Verdana' ? 'selected' : ''}>Verdana</option>
+                                <option value="Courier New" ${currentFontFamily === 'Courier New' ? 'selected' : ''}>Courier New</option>
+                            </select>
+                        </label>
+
+                        <div id="backgroundButtons" class="flex flex-wrap gap-2">
+                            <!-- Los botones de fondo se añadirán aquí dinámicamente -->
                         </div>
 
-                        <button onclick="clearCanvas()"
+                        <button id="fillCanvasButton"
+                            class="px-6 py-2 bg-blue-600 text-white rounded-md shadow-md hover:bg-blue-700 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-opacity-50 transform hover:scale-105">
+                            Rellenar Pizarra 🎨
+                        </button>
+
+                        <button id="clearCanvasButton"
                             class="px-6 py-2 bg-red-500 text-white rounded-md shadow-md hover:bg-red-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transform hover:scale-105">
                             Borrar Pizarra 🗑️
                         </button>
 
-                        <button onclick="handleSaveDrawing()"
+                        <button id="saveDrawingButton"
                             class="px-6 py-2 bg-green-500 text-white rounded-md shadow-md hover:bg-green-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transform hover:scale-105">
                             Guardar Dibujo ✅
                         </button>
 
-                        <button onclick="playClickSound(); currentBoardId = null; renderApp();"
+                        <button id="backToHomeButton"
                             class="px-6 py-2 bg-gray-500 text-white rounded-md shadow-md hover:bg-gray-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transform hover:scale-105">
                             Regresar a Inicio 🏠
                         </button>
@@ -457,14 +536,14 @@
             // Adjunta los listeners de eventos después de renderizar el HTML
             const canvas = document.getElementById('drawingCanvas');
             if (canvas) {
-                canvas.addEventListener('mousedown', startDrawing);
-                canvas.addEventListener('mousemove', draw);
-                canvas.addEventListener('mouseup', stopDrawing);
-                canvas.addEventListener('mouseleave', stopDrawing);
-                canvas.addEventListener('touchstart', startDrawing);
-                canvas.addEventListener('touchmove', draw);
-                canvas.addEventListener('touchend', stopDrawing);
-                canvas.addEventListener('touchcancel', stopDrawing);
+                canvas.addEventListener('mousedown', handleCanvasInteraction);
+                canvas.addEventListener('mousemove', handleCanvasInteraction);
+                canvas.addEventListener('mouseup', handleCanvasInteraction);
+                canvas.addEventListener('mouseleave', handleCanvasInteraction);
+                canvas.addEventListener('touchstart', handleCanvasInteraction);
+                canvas.addEventListener('touchmove', handleCanvasInteraction);
+                canvas.addEventListener('touchend', handleCanvasInteraction);
+                canvas.addEventListener('touchcancel', handleCanvasInteraction);
             }
 
             const colorPicker = document.getElementById('colorPicker');
@@ -481,6 +560,70 @@
                     document.getElementById('brushSizeValue').textContent = `${brushSize}px`;
                 });
             }
+
+            const brushStyleSelect = document.getElementById('brushStyle');
+            if (brushStyleSelect) {
+                brushStyleSelect.addEventListener('change', (e) => {
+                    brushStyle = e.target.value;
+                });
+            }
+
+            const textModeToggleButton = document.getElementById('textModeToggle');
+            if (textModeToggleButton) {
+                textModeToggleButton.addEventListener('click', () => {
+                    playClickSound();
+                    isTextMode = !isTextMode; // Alternar modo texto
+                    // Actualizar el estilo del botón
+                    if (isTextMode) {
+                        textModeToggleButton.classList.remove('bg-yellow-500');
+                        textModeToggleButton.classList.add('bg-yellow-600');
+                    } else {
+                        textModeToggleButton.classList.remove('bg-yellow-600');
+                        textModeToggleButton.classList.add('bg-yellow-500');
+                    }
+                });
+            }
+
+            const fontSizeInput = document.getElementById('fontSize');
+            if (fontSizeInput) {
+                fontSizeInput.addEventListener('input', (e) => {
+                    currentFontSize = parseInt(e.target.value);
+                });
+            }
+
+            const fontFamilySelect = document.getElementById('fontFamily');
+            if (fontFamilySelect) {
+                fontFamilySelect.addEventListener('change', (e) => {
+                    currentFontFamily = e.target.value;
+                });
+            }
+
+            // Adjuntar listeners a los botones de imagen de fondo
+            const backgroundButtonsContainer = document.getElementById('backgroundButtons');
+            backgroundImages.forEach(img => {
+                const button = document.createElement('button');
+                button.className = "px-4 py-2 bg-purple-500 text-white rounded-md shadow-md hover:bg-purple-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transform hover:scale-105";
+                button.textContent = img.name;
+                button.addEventListener('click', () => setBackgroundImage(img.url));
+                backgroundButtonsContainer.appendChild(button);
+            });
+            const clearBgButton = document.createElement('button');
+            clearBgButton.className = "px-4 py-2 bg-orange-500 text-white rounded-md shadow-md hover:bg-orange-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-50 transform hover:scale-105";
+            clearBgButton.textContent = 'Quitar Fondo 🚫';
+            clearBgButton.addEventListener('click', clearBackgroundImage);
+            backgroundButtonsContainer.appendChild(clearBgButton);
+
+
+            // Adjuntar listeners a los botones de acción
+            document.getElementById('fillCanvasButton').addEventListener('click', fillCanvas);
+            document.getElementById('clearCanvasButton').addEventListener('click', clearCanvas);
+            document.getElementById('saveDrawingButton').addEventListener('click', handleSaveDrawing);
+            document.getElementById('backToHomeButton').addEventListener('click', () => {
+                playClickSound();
+                currentBoardId = null;
+                renderApp();
+            });
+
 
             // Añade el listener de redimensionamiento de la ventana
             window.addEventListener('resize', resizeCanvas);
