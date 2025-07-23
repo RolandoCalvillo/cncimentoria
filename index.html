@@ -3,493 +3,508 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juego Vocacional 3.1</title>
+    <title>Pizarra Colaborativa</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+    <!-- Tone.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <style>
         body {
-            font-family: 'Poppins', sans-serif;
-            background: #a8d5e5;
-            background-image: radial-gradient(circle, #cde9f2 1px, transparent 1px);
-            background-size: 15px 15px;
+            font-family: 'Inter', sans-serif;
         }
-        .board-container {
-            display: grid;
-            grid-template-columns: repeat(12, 1fr);
-            grid-template-rows: repeat(12, 1fr);
-            width: 90vmin;
-            height: 90vmin;
-            max-width: 800px;
-            max-height: 800px;
-            gap: 4px;
+        canvas {
+            touch-action: none; /* Prevent scrolling/zooming on canvas for better drawing experience */
         }
-        .square {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            border-radius: 50%;
-            color: #444;
-            background-color: #f1f1d4;
-            box-shadow: inset 0 0 5px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s ease;
-            border: 3px solid #e6e6bf;
+        /* Animación para el mensaje de guardado */
+        @keyframes fade-in-out {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
         }
-        .square-prize { background-color: #d4f1d4; border-color: #b8e0b8; }
-        .square-penalty { background-color: #f1d4d4; border-color: #e0b8b8; }
-        .square-skill { background-color: #d4e8f1; border-color: #b8d0e0; }
-        .square-event { background-color: #e5d4f1; border-color: #cbb8e0; }
-        .square-start { background-color: #fefae0; border-color: #faedcd; }
-        .square-goal { background-color: #f1e4d4; border-color: #e0cbb8; transform: scale(1.2); }
-        .square .square-number { font-size: 0.7em; position: absolute; top: 5%; right: 10%; color: #6b7280; }
-        .player-token-container { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; width: 100%; height: 100%; }
-        .player-token { width: 40%; height: 40%; border-radius: 50%; margin: 2px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid white; }
-        #dice-face { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background-color: #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.1); transition: transform 0.5s; }
-        .dice-rolling { transform: scale(1.1) rotate(360deg); }
-        .modal.hidden { display: none; }
-        .skill-icon { font-size: 1.5rem; }
-        .panel {
-            background: #fff;
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-            text-align: center;
-            width: 100%;
-            max-width: 300px;
-        }
-        .card-placeholder {
-            width: 100%;
-            height: 120px;
-            border: 3px dashed #cbd5e1;
-            border-radius: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 4rem;
-            color: #94a3b8;
+        .animate-fade-in-out {
+            animation: fade-in-out 3s ease-in-out forwards;
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-
-    <!-- Pantalla de Configuración Inicial -->
-    <div id="setup-screen" class="w-full max-w-md text-center bg-white p-8 rounded-2xl shadow-xl">
-        <h1 class="text-4xl font-bold text-sky-600 mb-2">Juego Vocacional</h1>
-        <p class="text-gray-500 mb-8">🧭 Edición con Habilidades y Eventos 🚀</p>
-        <div class="mb-8">
-            <label for="player-count" class="block text-lg font-semibold text-gray-700 mb-2">Jugadores: <span id="player-count-label" class="text-sky-600 font-bold">2</span></label>
-            <input id="player-count" type="range" min="1" max="4" value="2" class="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer range-lg accent-sky-500">
-        </div>
-        <button id="start-game-btn" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-4 rounded-lg text-xl transition duration-300 transform hover:scale-105">¡Comenzar Aventura!</button>
-    </div>
-
-    <!-- Pantalla de Juego -->
-    <div id="game-screen" class="hidden w-full max-w-screen-2xl mx-auto">
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-center">
-            
-            <!-- Panel Izquierdo: Mochila -->
-            <div class="lg:col-span-1 order-2 lg:order-1 flex justify-center">
-                <div class="panel">
-                    <h3 class="text-xl font-bold text-gray-800 mb-3">Mochila de Habilidades 🎒</h3>
-                    <div id="skills-container" class="min-h-[120px] bg-gray-50 p-3 rounded-lg grid grid-cols-3 gap-2"></div>
-                    <button id="restart-game-btn" class="w-full mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition">Reiniciar Juego</button>
-                </div>
-            </div>
-
-            <!-- Tablero de Juego (Centro) -->
-            <div class="lg:col-span-3 order-1 lg:order-2 flex justify-center items-center">
-                <div id="board" class="board-container"></div>
-            </div>
-
-            <!-- Panel Derecho: Controles y Eventos -->
-            <div class="lg:col-span-1 order-3 flex justify-center">
-                <div class="flex flex-col gap-6 w-full max-w-sm">
-                    <div id="control-panel" class="panel">
-                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Panel de Control</h2>
-                        <div id="turn-indicator" class="w-full text-center mb-6 p-3 rounded-lg bg-gray-100">
-                            <p class="text-lg">Turno del:</p>
-                            <p id="current-player-label" class="text-2xl font-bold"></p>
-                        </div>
-                        <div class="flex justify-center mb-6">
-                            <div id="dice-face" class="text-5xl"><span>🎲</span></div>
-                        </div>
-                        <button id="roll-dice-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-xl transition shadow-lg">Lanzar Dado</button>
-                    </div>
-                    <div id="event-card-deck" class="panel">
-                         <h3 class="text-xl font-bold text-gray-800 mb-3">Cartas de Evento</h3>
-                         <div class="card-placeholder">🔮</div>
-                         <p class="text-gray-500 mt-2 text-sm">Cae en una casilla 🔮 para sacar una carta.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modals -->
-    <div id="message-modal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center transform">
-            <p id="message-emoji" class="text-6xl mb-4"></p>
-            <h3 id="message-title" class="text-2xl font-bold text-gray-800 mb-2"></h3>
-            <p id="message-text" class="text-gray-600 mb-6"></p>
-            <div id="message-buttons" class="flex flex-col gap-2"></div>
-        </div>
-    </div>
-    <div id="event-modal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center transform">
-             <p class="text-6xl mb-4">✨</p>
-            <h3 id="event-title" class="text-2xl font-bold text-gray-800 mb-2"></h3>
-            <p id="event-text" class="text-gray-600 mb-6"></p>
-            <div id="event-options" class="flex flex-col gap-3"></div>
-        </div>
-    </div>
-    <div id="winner-modal" class="modal hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center transform">
-            <p class="text-7xl mb-4">🎉</p>
-            <h2 class="text-3xl font-bold text-amber-500 mb-4">¡Felicidades!</h2>
-            <p id="winner-text" class="text-2xl text-gray-700 font-semibold mb-2"></p>
-            <p class="text-gray-600 mb-8">Has llegado a la meta. ¡El viaje apenas comienza!</p>
-            <button id="play-again-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-8 rounded-lg transition">Jugar de Nuevo</button>
-        </div>
+<body class="bg-gray-100 font-inter antialiased">
+    <div id="app-root" class="flex flex-col items-center justify-center min-h-screen p-4">
+        <!-- El contenido de la aplicación se renderizará dinámicamente aquí por JavaScript -->
     </div>
 
     <script>
-        // --- CONFIGURACIÓN DEL JUEGO ---
-        const TOTAL_SQUARES = 50;
-        const PRIZE_SQUARES_COUNT = 6, PENALTY_SQUARES_COUNT = 6, SKILL_SQUARES_COUNT = 5, EVENT_SQUARES_COUNT = 5;
-        const playerColors = ['#3b82f6', '#ef4444', '#22c55e', '#f97316'];
-        const playerIcons = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.0001 2.51327L14.4854 7.50021L19.4723 9.98551L14.4854 12.4708L12.0001 17.4577L9.5148 12.4708L4.52789 9.98551L9.5148 7.50021L12.0001 2.51327Z"></path></svg>`,`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22C8.13401 22 5 18.866 5 15C5 12.2913 6.53231 9.92449 8.75023 8.53424C8.75023 6.01818 10.12 4 12 4C13.88 4 15.2498 6.01818 15.2498 8.53424C17.4677 9.92449 19 12.2913 19 15C19 18.866 15.866 22 12 22Z"></path></svg>`,`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21 18H6C5.44772 18 5 17.5523 5 17V4C5 3.44772 5.44772 3 6 3H21C21.5523 3 22 3.44772 22 4V17C22 17.5523 21.5523 18 21 18ZM7 5V16H20V5H7ZM4 19H20V21H4C2.89543 21 2 20.1046 2 19V6H4V19Z"></path></svg>`,`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z"></path></svg>`];
-        const skills = { comunicacion: {name:"Comunicación", e:"🗣️"}, logica: {name:"Lógica", e:"🧠"}, creatividad: {name:"Creatividad", e:"🎨"}, empatia: {name:"Empatía", e:"❤️"}, resiliencia: {name:"Resiliencia", e:"💪"}};
-        const eventCards = [
-            {t:"Oportunidad de Debate", x:"Hay un debate sobre 'IA en la educación'.", o:[{t:"Participar activamente", a:{m:2, s:'comunicacion'}},{t:"Solo escuchar", a:{m:1}}]},
-            {t:"Proyecto en Equipo", x:"Tu profesor propone un proyecto complejo.", o:[{t:"Liderar el equipo", a:{m:3, s:'logica'}},{t:"Ser un miembro más", a:{m:1}}]},
-            {t:"Concurso de Arte", x:"La escuela organiza un concurso de arte mural.", o:[{t:"Diseñar un mural", a:{m:2, s:'creatividad'}},{t:"No participar", a:{}}]},
-            {t:"Conflicto entre Amigos", x:"Dos de tus amigos discuten fuertemente.", o:[{t:"Mediar entre ellos", a:{m:1, s:'empatia'}},{t:"No involucrarse", a:{m:-1}}]},
-            {t:"Reto Académico", x:"Una materia se te está complicando mucho.", o:[{t:"Pedir ayuda y estudiar más", a:{m:3, s:'resiliencia'}},{t:"Rendirse y aceptarlo", a:{m:-3}}]}
+        // Define variables globales para la configuración de Firebase y el ID de la aplicación
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Variables globales para las instancias de Firebase y el estado de la aplicación
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+        let currentBoardId = null; // null para la pantalla de inicio, string para el ID del tablero
+
+        // Variables de estado para el tablero de dibujo actual
+        let drawing = false;
+        let currentStroke = [];
+        let strokes = []; // Trazos para el tablero activo actual
+        let color = '#000000';
+        let brushSize = 5;
+        let backgroundImageUrl = null;
+        const backgroundImageRef = new Image(); // Referencia al objeto Image para la imagen de fondo
+
+        // Datos de imágenes de fondo predefinidas
+        const backgroundImages = [
+            { id: 'person', url: 'https://placehold.co/400x600/aabbcc/ffffff?text=Persona', name: 'Persona 🧍' },
+            { id: 'house', url: 'https://placehold.co/600x400/ccbbdd/ffffff?text=Casa', name: 'Casa 🏠' },
+            { id: 'tree', url: 'https://placehold.co/300x500/ddeeff/ffffff?text=Arbol', name: 'Árbol 🌳' },
+            { id: 'cloud', url: 'https://placehold.co/500x300/eefaff/000000?text=Nube', name: 'Nube ☁️' },
         ];
-        const normalMessages = [{e:'🤔',t:'Momento de reflexión',x:'Te preguntas qué te apasiona realmente.'},{e:'📝',t:'Test Vocacional',x:'Encuentras un test de intereses en línea.'},{e:'🏛️',t:'Feria de Universidades',x:'Asistes a un evento para conocer opciones.'}];
-        const prizeMessages = [{e:'🎓',t:'¡Beca Ganada!',x:'Ganas una beca para un curso de verano.',m:4},{e:'🚀',t:'Consejo de Mentor',x:'Un mentor te da un consejo clave.',m:3},{e:'🏆',t:'Proyecto Exitoso',x:'Tu proyecto escolar recibe un premio.',m:5}];
-        const penaltyMessages = [{e:'😥',t:'Examen Reprobado',x:'Reprobaste un examen importante.',m:-4},{e:'🙁',t:'Presión Social',x:'Eliges una materia por tus amigos y no te gusta.',m:-3},{e:'😟',t:'Procrastinación',x:'Dejas todo para el último minuto.',m:-5}];
-        const boardLayout = [ {s:1,r:12,c:1},{s:2,r:12,c:2},{s:3,r:12,c:3},{s:4,r:12,c:4},{s:5,r:12,c:5},{s:6,r:12,c:6},{s:7,r:11,c:6},{s:8,r:10,c:6},{s:9,r:10,c:5},{s:10,r:10,c:4},{s:11,r:10,c:3},{s:12,r:10,c:2},{s:13,r:9,c:2},{s:14,r:8,c:2},{s:15,r:7,c:2},{s:16,r:6,c:2},{s:17,r:6,c:3},{s:18,r:6,c:4},{s:19,r:6,c:5},{s:20,r:6,c:6},{s:21,r:6,c:7},{s:22,r:6,c:8},{s:23,r:5,c:8},{s:24,r:4,c:8},{s:25,r:3,c:8},{s:26,r:2,c:8},{s:27,r:2,c:7},{s:28,r:2,c:6},{s:29,r:2,c:5},{s:30,r:2,c:4},{s:31,r:2,c:3},{s:32,r:3,c:3},{s:33,r:4,c:3},{s:34,r:5,c:3},{s:35,r:5,c:4},{s:36,r:5,c:5},{s:37,r:5,c:6},{s:38,r:5,c:7},{s:39,r:7,c:7},{s:40,r:8,c:7},{s:41,r:9,c:7},{s:42,r:9,c:8},{s:43,r:9,c:9},{s:44,r:9,c:10},{s:45,r:8,c:10},{s:46,r:7,c:10},{s:47,r:6,c:10},{s:48,r:5,c:10},{s:49,r:4,c:10},{s:50,r:3,c:10}];
 
-        let players = [], currentPlayerIndex = 0, boardSquares = [], gameInProgress = false;
-        let sounds;
-        
-        const setupScreen = document.getElementById('setup-screen'), gameScreen = document.getElementById('game-screen'), playerCountSlider = document.getElementById('player-count'), playerCountLabel = document.getElementById('player-count-label'), startGameBtn = document.getElementById('start-game-btn'), boardElement = document.getElementById('board'), currentPlayerLabel = document.getElementById('current-player-label'), diceFace = document.getElementById('dice-face'), rollDiceBtn = document.getElementById('roll-dice-btn'), messageModal = document.getElementById('message-modal'), messageEmoji = document.getElementById('message-emoji'), messageTitle = document.getElementById('message-title'), messageText = document.getElementById('message-text'), messageButtons = document.getElementById('message-buttons'), winnerModal = document.getElementById('winner-modal'), winnerText = document.getElementById('winner-text'), playAgainBtn = document.getElementById('play-again-btn'), restartGameBtn = document.getElementById('restart-game-btn'), skillsContainer = document.getElementById('skills-container'), eventModal = document.getElementById('event-modal'), eventTitle = document.getElementById('event-title'), eventText = document.getElementById('event-text'), eventOptions = document.getElementById('event-options');
+        // Instancia global de Tone.js Synth para sonidos de clic
+        let localSynth = null;
 
-        function setupSounds() {
-            sounds = {
-                dice: new Tone.MembraneSynth().toDestination(),
-                move: new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:0.01,decay:0.1,sustain:0.2,release:0.2}}).toDestination(),
-                prize: new Tone.Synth({oscillator:{type:'triangle'},envelope:{attack:0.01,decay:0.2,sustain:0.1,release:0.2}}).toDestination(),
-                penalty: new Tone.Synth({oscillator:{type:'square'},envelope:{attack:0.01,decay:0.4,sustain:0,release:0.2}}).toDestination(),
-                win: new Tone.PolySynth(Tone.Synth).toDestination(),
-                click: new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:0.001,decay:0.1,sustain:0,release:0.1}}).toDestination(),
-                skill: new Tone.Synth({oscillator:{type:'sawtooth'},envelope:{attack:0.01,decay:0.2,sustain:0.2,release:0.2}}).toDestination(),
-                event: new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:0.2,decay:0.3,sustain:0.1,release:0.3}}).toDestination(),
-            };
-        }
-        function playSound(soundName) {
-            if (!sounds) return;
-            const now = Tone.now();
-            switch(soundName) {
-                case 'dice': sounds.dice.triggerAttackRelease('C2', '8n', now); break;
-                case 'move': sounds.move.triggerAttackRelease('C4', '16n', now); break;
-                case 'prize': sounds.prize.triggerAttackRelease('G5', '8n', now + 0.1); sounds.prize.triggerAttackRelease('E5', '8n', now); break;
-                case 'penalty': sounds.penalty.triggerAttackRelease('C3', '4n', now); break;
-                case 'win': sounds.win.triggerAttackRelease(['C4', 'E4', 'G4', 'C5'], '4n', now); break;
-                case 'click': sounds.click.triggerAttackRelease('C5', '16n', now); break;
-                case 'skill': sounds.skill.triggerAttackRelease('A4', '8n', now); break;
-                case 'event': sounds.event.triggerAttackRelease('F4', '4n', now); break;
-            }
-        }
+        // --- Inicialización de Firebase ---
+        async function initializeFirebase() {
+            try {
+                // Usa las funciones directamente del SDK modular de Firebase
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
 
-        function initializeBoard() {
-            boardSquares = Array(TOTAL_SQUARES + 1).fill({ type: 'normal' });
-            const specialCounts = { prize: PRIZE_SQUARES_COUNT, penalty: PENALTY_SQUARES_COUNT, skill: SKILL_SQUARES_COUNT, event: EVENT_SQUARES_COUNT };
-            const specialMessages = { prize: prizeMessages, penalty: penaltyMessages };
-            const availableSquares = Array.from({ length: TOTAL_SQUARES - 1 }, (_, i) => i + 1);
-            for (let i = availableSquares.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [availableSquares[i], availableSquares[j]] = [availableSquares[j], availableSquares[i]]; }
-            
-            Object.keys(specialCounts).forEach(type => {
-                for(let i=0; i < specialCounts[type]; i++) {
-                    const index = availableSquares.pop();
-                    if(type === 'skill') boardSquares[index] = { type, skill: Object.keys(skills)[i % Object.keys(skills).length] };
-                    else if(type === 'event') boardSquares[index] = { type };
-                    else boardSquares[index] = { type, ...specialMessages[type][i % specialMessages[type].length] };
-                }
-            });
-            availableSquares.forEach(index => { boardSquares[index] = { type: 'normal', ...normalMessages[Math.floor(Math.random() * normalMessages.length)] }; });
-            renderBoard();
-        }
-
-        function renderBoard() {
-            boardElement.innerHTML = '';
-            boardLayout.forEach(pos => {
-                const index = pos.s;
-                const square = document.createElement('div');
-                square.id = `square-${index}`;
-                square.classList.add('square', `square-${boardSquares[index].type}`);
-                square.style.gridRow = pos.r;
-                square.style.gridColumn = pos.c;
-                let emoji = '';
-                if (index === TOTAL_SQUARES) { emoji = '🏆'; }
-                else if (boardSquares[index].type === 'prize') { emoji = '🎁'; }
-                else if (boardSquares[index].type === 'penalty') { emoji = '💀'; }
-                else if (boardSquares[index].type === 'skill') { emoji = '📘'; }
-                else if (boardSquares[index].type === 'event') { emoji = '🔮'; }
-                square.innerHTML = `<span class="square-number">${index}</span><span class="text-2xl">${emoji}</span><div class="player-token-container"></div>`;
-                boardElement.appendChild(square);
-            });
-            const startSquare = document.createElement('div');
-            startSquare.id = 'square-0';
-            startSquare.classList.add('square', 'square-start');
-            startSquare.style.gridRow = '12'; startSquare.style.gridColumn = '1';
-            startSquare.innerHTML = `<span class="text-2xl">🏁</span><div class="player-token-container"></div>`;
-            boardElement.prepend(startSquare);
-        }
-
-        function updateBoardWithTokens() {
-            document.querySelectorAll('.player-token').forEach(t => t.remove());
-            players.forEach(player => {
-                const square = document.getElementById(`square-${player.position}`);
-                if (square) {
-                    const tokenContainer = square.querySelector('.player-token-container');
-                    const token = document.createElement('div');
-                    token.classList.add('player-token');
-                    token.style.backgroundColor = player.color;
-                    token.innerHTML = `<div class="w-full h-full text-white p-0.5">${player.icon}</div>`;
-                    tokenContainer.appendChild(token);
-                }
-            });
-        }
-        
-        function updateBackpack() {
-            const player = players[currentPlayerIndex];
-            skillsContainer.innerHTML = '';
-            if (player.skills.length === 0) {
-                skillsContainer.innerHTML = `<p class="text-gray-400 col-span-3 text-center text-sm">Tu mochila está vacía.</p>`;
-            } else {
-                player.skills.forEach(skillKey => {
-                    const skill = skills[skillKey];
-                    const skillEl = document.createElement('div');
-                    skillEl.classList.add('flex', 'flex-col', 'items-center', 'justify-center', 'p-1', 'bg-white', 'rounded', 'shadow-sm');
-                    skillEl.innerHTML = `<span class="skill-icon">${skill.e}</span><span class="text-xs text-center">${skill.name}</span>`;
-                    skillsContainer.appendChild(skillEl);
+                // Escucha los cambios de estado de autenticación
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                    } else {
+                        // Inicia sesión de forma anónima si no hay ningún usuario conectado
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                        userId = auth.currentUser?.uid; // Asegura que userId se establezca después del inicio de sesión
+                    }
+                    isAuthReady = true;
+                    renderApp(); // Vuelve a renderizar la aplicación después de que la autenticación esté lista
                 });
+            } catch (error) {
+                console.error("Error al inicializar Firebase:", error);
             }
         }
 
-        function initializePlayers() {
-            players = [];
-            for (let i = 0; i < parseInt(playerCountSlider.value); i++) {
-                players.push({ id: i, name: `Jugador ${i + 1}`, position: 0, color: playerColors[i], icon: playerIcons[i], skills: [] });
+        // --- Inicialización de Tone.js ---
+        function initializeSynth() {
+            if (typeof Tone !== 'undefined') {
+                localSynth = new Tone.Synth().toDestination();
+                // No es necesario un método de dispose en un contexto global para una aplicación de una sola página
+            } else {
+                console.warn("Tone.js no está definido. Los efectos de sonido no funcionarán.");
             }
-            updateBoardWithTokens();
-            updateBackpack();
         }
 
-        function updateTurnIndicator() {
-            const player = players[currentPlayerIndex];
-            currentPlayerLabel.textContent = player.name;
-            currentPlayerLabel.style.color = player.color;
-            updateBackpack();
+        // Función para reproducir un sonido de clic
+        function playClickSound() {
+            if (localSynth) {
+                localSynth.triggerAttackRelease("C4", "8n"); // Reproduce una nota C4 durante una octava
+            } else {
+                console.warn("Sintetizador no inicializado, no se puede reproducir el sonido.");
+            }
         }
 
-        function showMessage(emoji, title, text, buttons) {
-            messageEmoji.textContent = emoji;
-            messageTitle.textContent = title;
-            messageText.textContent = text;
-            messageButtons.innerHTML = '';
-            buttons.forEach(btn => messageButtons.appendChild(btn));
-            messageModal.classList.remove('hidden');
+        // --- Lógica de Dibujo en el Canvas ---
+        // Función para dibujar un solo trazo en el lienzo
+        function drawStroke(context, stroke) {
+            if (!context || !stroke || !stroke.points || stroke.points.length < 2) return;
+
+            context.beginPath();
+            context.moveTo(stroke.points[0].x, stroke.points[0].y);
+            context.strokeStyle = stroke.color;
+            context.lineWidth = stroke.brushSize;
+            context.lineCap = 'round';
+            context.lineJoin = 'round';
+
+            for (let i = 1; i < stroke.points.length; i++) {
+                context.lineTo(stroke.points[i].x, stroke.points[i].y);
+            }
+            context.stroke();
         }
 
-        async function handleTurn() {
-            if (!gameInProgress) return;
-            gameInProgress = false;
-            rollDiceBtn.disabled = true;
-            rollDiceBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        // Función para redibujar todo el contenido del lienzo (fondo y trazos)
+        function redrawCanvas() {
+            const canvas = document.getElementById('drawingCanvas');
+            if (!canvas) return;
+            const context = canvas.getContext('2d');
 
-            playSound('dice');
-            diceFace.classList.add('dice-rolling');
-            const rollResult = Math.floor(Math.random() * 6) + 1;
-            await new Promise(resolve => setTimeout(resolve, 500));
-            diceFace.classList.remove('dice-rolling');
-            diceFace.textContent = rollResult;
+            // Limpia el lienzo antes de redibujar
+            context.clearRect(0, 0, canvas.width, canvas.height);
 
-            const player = players[currentPlayerIndex];
-            await movePlayerSmoothly(player, player.position, Math.min(player.position + rollResult, TOTAL_SQUARES));
-            handleSquareAction();
+            // Dibuja la imagen de fondo si está disponible y cargada
+            if (backgroundImageRef.src && backgroundImageRef.complete) {
+                context.drawImage(backgroundImageRef, 0, 0, canvas.width, canvas.height);
+            }
+
+            // Dibuja todos los trazos existentes
+            strokes.forEach(stroke => {
+                drawStroke(context, stroke);
+            });
+
+            // Dibuja el trazo actual que está siendo dibujado activamente por el usuario
+            if (currentStroke.length > 0 && drawing) {
+                context.beginPath();
+                context.moveTo(currentStroke[0].x, currentStroke[0].y);
+                context.strokeStyle = color;
+                context.lineWidth = brushSize;
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                for (let i = 1; i < currentStroke.length; i++) {
+                    context.lineTo(currentStroke[i].x, currentStroke[i].y);
+                }
+                context.stroke();
+            }
         }
 
-        function handleSquareAction() {
-            const player = players[currentPlayerIndex];
-            const squareData = boardSquares[player.position];
+        // Función para manejar el redimensionamiento del lienzo
+        function resizeCanvas() {
+            const canvas = document.getElementById('drawingCanvas');
+            if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                redrawCanvas(); // Redibuja el contenido después de redimensionar
+            }
+        }
 
-            if (player.position >= TOTAL_SQUARES) {
-                checkWinCondition();
+        // Maneja el evento de presionar el ratón/tocar para comenzar a dibujar
+        function startDrawing(e) {
+            if (!userId) {
+                console.warn("Usuario no autenticado aún. No se puede iniciar el dibujo.");
                 return;
             }
+            drawing = true;
+            const canvas = document.getElementById('drawingCanvas');
+            const rect = canvas.getBoundingClientRect();
+            let x, y;
 
-            switch(squareData.type) {
-                case 'prize':
-                    playSound('prize');
-                    showMessage(squareData.e, squareData.t, squareData.x, [createButton('¡Genial!', () => handleSpecialMove(squareData))]);
-                    break;
-                case 'penalty':
-                    playSound('penalty');
-                    const buttons = [createButton('Aceptar castigo', () => handleSpecialMove(squareData))];
-                    if (player.skills.length > 0) {
-                        buttons.unshift(createButton(`Usar habilidad (${player.skills.length})`, () => {
-                            player.skills.pop();
-                            updateBackpack();
-                            showMessage('🛡️', '¡Habilidad Usada!', 'Evitaste el castigo. ¡Bien hecho!', [createButton('Continuar', nextTurn)]);
-                        }, 'bg-yellow-500', 'hover:bg-yellow-600'));
-                    }
-                    showMessage(squareData.e, squareData.t, squareData.x, buttons);
-                    break;
-                case 'skill':
-                    playSound('skill');
-                    player.skills.push(squareData.skill);
-                    updateBackpack();
-                    showMessage(skills[squareData.skill].e, '¡Nueva Habilidad!', `Has adquirido la habilidad de ${skills[squareData.skill].name}.`, [createButton('¡Excelente!', nextTurn)]);
-                    break;
-                case 'event':
-                    playSound('event');
-                    const card = eventCards[Math.floor(Math.random() * eventCards.length)];
-                    eventTitle.textContent = card.t;
-                    eventText.textContent = card.x;
-                    eventOptions.innerHTML = '';
-                    card.o.forEach(opt => {
-                        const btn = document.createElement('button');
-                        btn.textContent = opt.t;
-                        btn.classList.add('w-full', 'text-white', 'font-bold', 'py-2', 'px-6', 'rounded-lg', 'transition', 'bg-sky-500', 'hover:bg-sky-600');
-                        btn.onclick = () => {
-                            playSound('click');
-                            eventModal.classList.add('hidden');
-                            handleEventAction(opt.a);
-                        };
-                        eventOptions.appendChild(btn);
-                    });
-                    eventModal.classList.remove('hidden');
-                    break;
-                default:
-                    showMessage(squareData.e, squareData.t, squareData.x, [createButton('Continuar', nextTurn)]);
+            if (e.touches) { // Para eventos táctiles
+                x = e.touches[0].clientX - rect.left;
+                y = e.touches[0].clientY - rect.top;
+            } else { // Para eventos de ratón
+                x = e.clientX - rect.left;
+                y = e.clientY - rect.top;
             }
-        }
-        
-        async function handleEventAction(action) {
-            const player = players[currentPlayerIndex];
-            let outcomeTitle = "Decisión Tomada";
-            let outcomeMessage = "Tu elección ha marcado tu camino.";
-            let outcomeEmoji = "👍";
-
-            if (action.s && !player.skills.includes(action.s)) {
-                player.skills.push(action.s);
-                playSound('skill');
-                outcomeTitle = "¡Habilidad Obtenida!";
-                outcomeMessage = `Has añadido '${skills[action.s].name}' a tu mochila.`;
-                outcomeEmoji = skills[action.s].e;
-            }
-            
-            updateBackpack();
-
-            const endTurnCallback = async () => {
-                if (action.m) {
-                    await movePlayerSmoothly(player, player.position, Math.max(0, Math.min(player.position + action.m, TOTAL_SQUARES)));
-                }
-                checkWinCondition();
-            };
-
-            showMessage(outcomeEmoji, outcomeTitle, outcomeMessage, [createButton("Continuar", endTurnCallback, true)]);
+            currentStroke = [{ x, y }];
         }
 
-        function createButton(text, onClick, isAsync = false, ...classes) {
-            const btn = document.createElement('button');
-            btn.textContent = text;
-            btn.classList.add('w-full', 'text-white', 'font-bold', 'py-2', 'px-6', 'rounded-lg', 'transition', ...classes);
-            if(classes.length === 0) btn.classList.add('bg-sky-500', 'hover:bg-sky-600');
-            
-            const clickHandler = async () => {
-                playSound('click');
-                messageModal.classList.add('hidden');
-                if (isAsync) {
-                    await onClick();
-                } else {
-                    onClick();
-                }
-            };
-            btn.addEventListener('click', clickHandler, { once: true });
-            return btn;
-        }
-        
-        async function handleSpecialMove(squareData) {
-            await movePlayerSmoothly(players[currentPlayerIndex], players[currentPlayerIndex].position, Math.max(0, players[currentPlayerIndex].position + squareData.m));
-            checkWinCondition();
-        }
-        
-        function checkWinCondition() {
-            if (players[currentPlayerIndex].position >= TOTAL_SQUARES) {
-                playSound('win');
-                winnerText.textContent = `${players[currentPlayerIndex].name} ha ganado!`;
-                winnerText.style.color = players[currentPlayerIndex].color;
-                winnerModal.classList.remove('hidden');
+        // Maneja el evento de mover el ratón/tocar para continuar dibujando
+        function draw(e) {
+            if (!drawing) return;
+            const canvas = document.getElementById('drawingCanvas');
+            const rect = canvas.getBoundingClientRect();
+            let x, y;
+
+            if (e.touches) {
+                x = e.touches[0].clientX - rect.left;
+                y = e.touches[0].clientY - rect.top;
             } else {
-                nextTurn();
+                x = e.clientX - rect.left;
+                y = e.clientY - rect.top;
+            }
+            currentStroke.push({ x, y });
+            redrawCanvas(); // Redibuja continuamente mientras se dibuja
+        }
+
+        // Maneja el evento de soltar el ratón/tocar para detener el dibujo y guardar el trazo en Firestore
+        async function stopDrawing() {
+            drawing = false;
+            if (currentStroke.length > 1 && userId && db && currentBoardId) {
+                try {
+                    // Usa las funciones de Firestore directamente
+                    const strokesCollectionRef = collection(db, `artifacts/${appId}/public/data/boards/${currentBoardId}/strokes`);
+                    await addDoc(strokesCollectionRef, {
+                        userId: userId,
+                        points: JSON.stringify(currentStroke), // Almacena los puntos como cadena JSON
+                        color: color,
+                        brushSize: brushSize,
+                        timestamp: serverTimestamp() // Usa la marca de tiempo del servidor para ordenar
+                    });
+                } catch (error) {
+                    console.error("Error al guardar el trazo:", error);
+                }
+            }
+            currentStroke = []; // Limpia el trazo actual después de guardar
+        }
+
+        // --- Listeners y Operaciones de Firestore ---
+        let unsubscribeStrokes = null;
+        let unsubscribeSettings = null;
+
+        // Configura los listeners de Firestore para el tablero actual
+        function setupBoardListeners(boardId) {
+            // Desuscribe los listeners anteriores si existen
+            if (unsubscribeStrokes) unsubscribeStrokes();
+            if (unsubscribeSettings) unsubscribeSettings();
+
+            // Usa las funciones de Firestore directamente
+            const strokesCollectionRef = collection(db, `artifacts/${appId}/public/data/boards/${boardId}/strokes`);
+            const q = query(strokesCollectionRef, orderBy('timestamp'));
+
+            // Listener para los trazos
+            unsubscribeStrokes = onSnapshot(q, (snapshot) => {
+                const fetchedStrokes = [];
+                snapshot.forEach((d) => {
+                    const data = d.data();
+                    fetchedStrokes.push({
+                        id: d.id,
+                        ...data,
+                        points: JSON.parse(data.points) // Asegura que los puntos se analicen de nuevo a un array
+                    });
+                });
+                strokes = fetchedStrokes;
+                redrawCanvas();
+            }, (error) => {
+                console.error(`Error al obtener los trazos para el tablero ${boardId}:`, error);
+            });
+
+            // Listener para la configuración del tablero (imagen de fondo)
+            const boardSettingsDocRef = doc(db, `artifacts/${appId}/public/data/boardSettings`, boardId);
+            unsubscribeSettings = onSnapshot(boardSettingsDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    backgroundImageUrl = data.backgroundImageUrl || null;
+                } else {
+                    backgroundImageUrl = null;
+                }
+                // Carga la imagen de fondo si la URL cambia
+                if (backgroundImageUrl) {
+                    backgroundImageRef.onload = redrawCanvas;
+                    backgroundImageRef.onerror = () => {
+                        console.error("Error al cargar la imagen de fondo:", backgroundImageUrl);
+                        backgroundImageUrl = null; // Limpia la URL en caso de error
+                        redrawCanvas();
+                    };
+                    backgroundImageRef.src = backgroundImageUrl;
+                } else {
+                    backgroundImageRef.src = ''; // Limpia la fuente de la imagen
+                    redrawCanvas();
+                }
+            }, (error) => {
+                console.error(`Error al obtener la configuración del tablero ${boardId}:`, error);
+            });
+        }
+
+        // Función para borrar todos los dibujos del tablero actual en Firestore
+        async function clearCanvas() {
+            playClickSound();
+            if (!db || !currentBoardId) return;
+            try {
+                // Usa las funciones de Firestore directamente
+                const strokesCollectionRef = collection(db, `artifacts/${appId}/public/data/boards/${currentBoardId}/strokes`);
+                const snapshot = await getDocs(strokesCollectionRef);
+                const deletePromises = [];
+                snapshot.forEach((d) => {
+                    deletePromises.push(deleteDoc(d.ref)); // Usa deleteDoc con la referencia del documento
+                });
+                await Promise.all(deletePromises); // Ejecuta todas las eliminaciones concurrentemente
+                strokes = []; // Limpia el estado local inmediatamente
+                redrawCanvas();
+            } catch (error) {
+                console.error("Error al borrar el lienzo:", error);
             }
         }
 
-        async function movePlayerSmoothly(player, from, to) {
-            const direction = to > from ? 1 : -1;
-            for (let i = from + direction; (direction > 0 ? i <= to : i >= to); i += direction) {
-                player.position = i;
-                updateBoardWithTokens();
-                playSound('move');
-                await new Promise(resolve => setTimeout(resolve, 250));
+        // Función para el botón "Guardar Dibujo"
+        function handleSaveDrawing() {
+            playClickSound();
+            const saveMessageElement = document.getElementById('saveMessage');
+            if (saveMessageElement) {
+                saveMessageElement.textContent = '¡Dibujo guardado!';
+                saveMessageElement.classList.remove('hidden');
+                setTimeout(() => {
+                    saveMessageElement.classList.add('hidden');
+                    saveMessageElement.textContent = '';
+                }, 3000); // Borra el mensaje después de 3 segundos
             }
         }
 
-        function nextTurn() {
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-            updateTurnIndicator();
-            gameInProgress = true;
-            rollDiceBtn.disabled = false;
-            rollDiceBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
-        
-        function startGame() {
-            playSound('click');
-            if (Tone.context.state !== 'running') { Tone.start(); }
-            setupScreen.classList.add('hidden');
-            gameScreen.classList.remove('hidden');
-            initializeBoard();
-            initializePlayers();
-            updateTurnIndicator();
-            gameInProgress = true;
-        }
-        
-        function resetGame() {
-            playSound('click');
-            document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-            gameScreen.classList.add('hidden');
-            setupScreen.classList.remove('hidden');
-            currentPlayerIndex = 0;
-            diceFace.innerHTML = '<span>🎲</span>';
-            rollDiceBtn.disabled = false;
-            rollDiceBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        // Función para establecer una imagen de fondo
+        async function setBackgroundImage(imageUrl) {
+            playClickSound();
+            if (!db || !currentBoardId) return;
+            try {
+                // Usa las funciones de Firestore directamente
+                const boardSettingsDocRef = doc(db, `artifacts/${appId}/public/data/boardSettings`, currentBoardId);
+                await setDoc(boardSettingsDocRef, { backgroundImageUrl: imageUrl }, { merge: true });
+            } catch (error) {
+                console.error("Error al establecer la imagen de fondo:", error);
+            }
         }
 
-        playerCountSlider.addEventListener('input', (e) => { playerCountLabel.textContent = e.target.value; });
-        startGameBtn.addEventListener('click', startGame);
-        rollDiceBtn.addEventListener('click', handleTurn);
-        playAgainBtn.addEventListener('click', resetGame);
-        restartGameBtn.addEventListener('click', resetGame);
-        
-        setupSounds();
+        // Función para borrar la imagen de fondo
+        async function clearBackgroundImage() {
+            playClickSound();
+            if (!db || !currentBoardId) return;
+            try {
+                // Usa las funciones de Firestore directamente
+                const boardSettingsDocRef = doc(db, `artifacts/${appId}/public/data/boardSettings`, currentBoardId);
+                await setDoc(boardSettingsDocRef, { backgroundImageUrl: null }, { merge: true });
+            } catch (error) {
+                console.error("Error al borrar la imagen de fondo:", error);
+            }
+        }
+
+        // --- Funciones de Renderizado ---
+        // Renderiza la pantalla de inicio con los botones de selección de pizarra
+        function renderHomePage() {
+            const appRoot = document.getElementById('app-root');
+            appRoot.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-4xl">
+                    <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">
+                        Pizarra del Taller: Afrontamiento del Estrés
+                        <br />
+                        <span class="text-xl text-gray-600">Universidad Virtual CNCI</span>
+                    </h1>
+                    <div id="boardButtons" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        <!-- Los botones se añadirán aquí dinámicamente -->
+                    </div>
+                </div>
+            `;
+
+            const boardButtonsContainer = document.getElementById('boardButtons');
+            for (let i = 1; i <= 20; i++) {
+                const button = document.createElement('button');
+                button.className = "px-4 py-3 bg-blue-500 text-white rounded-md shadow-md hover:bg-blue-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transform hover:scale-105";
+                button.textContent = `Pizarra ${i} 🎨`;
+                button.onclick = () => {
+                    playClickSound();
+                    currentBoardId = `pizarra-${i}`;
+                    renderApp(); // Vuelve a renderizar para mostrar el tablero de dibujo
+                };
+                boardButtonsContainer.appendChild(button);
+            }
+        }
+
+        // Renderiza el tablero de dibujo para la pizarra seleccionada
+        function renderDrawingBoard() {
+            const appRoot = document.getElementById('app-root');
+            appRoot.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-4xl">
+                    <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Pizarra: ${currentBoardId}</h1>
+
+                    ${userId ? `<p class="text-sm text-gray-600 text-center mb-4">
+                        Tu ID de Usuario: <span class="font-mono bg-gray-200 px-2 py-1 rounded-md">${userId}</span>
+                    </p>` : ''}
+
+                    <div class="flex flex-wrap justify-center gap-4 mb-6">
+                        <label for="colorPicker" class="flex items-center space-x-2">
+                            <span class="text-gray-700">Color:</span>
+                            <input type="color" id="colorPicker" value="${color}"
+                                class="w-10 h-10 rounded-md cursor-pointer border border-gray-300 transition-all duration-200" />
+                        </label>
+
+                        <label for="brushSize" class="flex items-center space-x-2">
+                            <span class="text-gray-700">Tamaño del Pincel:</span>
+                            <input type="range" id="brushSize" min="1" max="20" value="${brushSize}"
+                                class="w-24 h-8 cursor-pointer accent-blue-500 transition-all duration-200" />
+                            <span id="brushSizeValue" class="text-gray-700">${brushSize}px</span>
+                        </label>
+
+                        <div class="flex flex-wrap gap-2">
+                            ${backgroundImages.map(img => `
+                                <button onclick="setBackgroundImage('${img.url}')"
+                                    class="px-4 py-2 bg-purple-500 text-white rounded-md shadow-md hover:bg-purple-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transform hover:scale-105">
+                                    ${img.name}
+                                </button>
+                            `).join('')}
+                            <button onclick="clearBackgroundImage()"
+                                class="px-4 py-2 bg-orange-500 text-white rounded-md shadow-md hover:bg-orange-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-50 transform hover:scale-105">
+                                Quitar Fondo 🚫
+                            </button>
+                        </div>
+
+                        <button onclick="clearCanvas()"
+                            class="px-6 py-2 bg-red-500 text-white rounded-md shadow-md hover:bg-red-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transform hover:scale-105">
+                            Borrar Pizarra 🗑️
+                        </button>
+
+                        <button onclick="handleSaveDrawing()"
+                            class="px-6 py-2 bg-green-500 text-white rounded-md shadow-md hover:bg-green-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transform hover:scale-105">
+                            Guardar Dibujo ✅
+                        </button>
+
+                        <button onclick="playClickSound(); currentBoardId = null; renderApp();"
+                            class="px-6 py-2 bg-gray-500 text-white rounded-md shadow-md hover:bg-gray-600 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transform hover:scale-105">
+                            Regresar a Inicio 🏠
+                        </button>
+                    </div>
+
+                    <p id="saveMessage" class="text-center text-green-600 font-semibold mb-4 hidden animate-fade-in-out"></p>
+
+                    <div class="relative w-full h-96 border-2 border-gray-300 rounded-lg overflow-hidden bg-white">
+                        <canvas id="drawingCanvas"
+                            class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
+                    </div>
+                </div>
+            `;
+
+            // Adjunta los listeners de eventos después de renderizar el HTML
+            const canvas = document.getElementById('drawingCanvas');
+            if (canvas) {
+                canvas.addEventListener('mousedown', startDrawing);
+                canvas.addEventListener('mousemove', draw);
+                canvas.addEventListener('mouseup', stopDrawing);
+                canvas.addEventListener('mouseleave', stopDrawing);
+                canvas.addEventListener('touchstart', startDrawing);
+                canvas.addEventListener('touchmove', draw);
+                canvas.addEventListener('touchend', stopDrawing);
+                canvas.addEventListener('touchcancel', stopDrawing);
+            }
+
+            const colorPicker = document.getElementById('colorPicker');
+            if (colorPicker) {
+                colorPicker.addEventListener('change', (e) => {
+                    color = e.target.value;
+                });
+            }
+
+            const brushSizeInput = document.getElementById('brushSize');
+            if (brushSizeInput) {
+                brushSizeInput.addEventListener('input', (e) => {
+                    brushSize = parseInt(e.target.value);
+                    document.getElementById('brushSizeValue').textContent = `${brushSize}px`;
+                });
+            }
+
+            // Añade el listener de redimensionamiento de la ventana
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas(); // Redimensionamiento inicial
+
+            // Configura los listeners de Firestore para el tablero actual
+            setupBoardListeners(currentBoardId);
+        }
+
+        // Función principal para renderizar la aplicación (pantalla de inicio o tablero de dibujo)
+        function renderApp() {
+            if (currentBoardId === null) {
+                renderHomePage();
+            } else {
+                renderDrawingBoard();
+            }
+        }
+
+        // Configuración inicial al cargar la ventana
+        window.onload = () => {
+            initializeFirebase();
+            initializeSynth();
+            renderApp();
+        };
     </script>
 </body>
 </html>
